@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "playwright-core": "1.63.0"
+  },
+  "name": "douyin-follow-manager",
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true,
+  "scripts": {
+    "test": "node --test scripts/qa_safety.mjs"
+  }
+}

@@ -1,0 +1,208 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="关序" Width="1140" Height="822" MinWidth="830" MinHeight="585" WindowStartupLocation="CenterScreen"
+ FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="14" Foreground="{DynamicResource Ink}" Background="{DynamicResource Paper}"
+ UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+ <Window.Resources>
+  <SolidColorBrush x:Key="Paper" Color="#F4F0E7"/>
+  <SolidColorBrush x:Key="Sheet" Color="#FFFCF5"/>
+  <SolidColorBrush x:Key="HeaderPaper" Color="#FCF9F1"/>
+  <SolidColorBrush x:Key="Field" Color="#FFFEF9"/>
+  <SolidColorBrush x:Key="SoftFill" Color="#F1EBDF"/>
+  <SolidColorBrush x:Key="HoverSheet" Color="#FCF3E7"/>
+  <SolidColorBrush x:Key="Ink" Color="#302A25"/>
+  <SolidColorBrush x:Key="MutedInk" Color="#685C50"/>
+  <SolidColorBrush x:Key="HeaderInk" Color="#55473E"/>
+  <SolidColorBrush x:Key="Edge" Color="#DCD2C2"/>
+  <SolidColorBrush x:Key="Rule" Color="#E9E1D5"/>
+  <SolidColorBrush x:Key="AltRow" Color="#F8F4EC"/>
+  <SolidColorBrush x:Key="ButtonEdge" Color="#C9BBAB"/>
+  <SolidColorBrush x:Key="Accent" Color="#9D422E"/>
+  <SolidColorBrush x:Key="OnAccent" Color="#FFF8E9"/>
+  <SolidColorBrush x:Key="ClayWash" Color="#F3E2D6"/>
+  <SolidColorBrush x:Key="SoftAccent" Color="#B77558"/>
+  <SolidColorBrush x:Key="HeroInk" Color="#FFFAED"/>
+  <SolidColorBrush x:Key="HeroQuiet" Color="#FBECDC"/>
+  <SolidColorBrush x:Key="HeroComplete" Color="#FFF2CB"/>
+  <SolidColorBrush x:Key="HeroHeld" Color="#F7B26E"/>
+  <SolidColorBrush x:Key="HeroPending" Color="#C0947E"/>
+  <SolidColorBrush x:Key="HeroTrack" Color="#AF765E"/>
+  <SolidColorBrush x:Key="SageWash" Color="#E8EBE0"/>
+  <SolidColorBrush x:Key="SageInk" Color="#4F6248"/>
+  <SolidColorBrush x:Key="Caution" Color="#86541E"/>
+  <SolidColorBrush x:Key="Danger" Color="#903826"/>
+  <SolidColorBrush x:Key="DangerWash" Color="#F8E9E1"/>
+  <SolidColorBrush x:Key="DangerEdge" Color="#D8AA99"/>
+  <SolidColorBrush x:Key="LogRim" Color="#3B322C"/>
+  <SolidColorBrush x:Key="LogField" Color="#27231F"/>
+  <SolidColorBrush x:Key="LogInk" Color="#F4EBDB"/>
+  <SolidColorBrush x:Key="LogMuted" Color="#C3B6A3"/>
+  <SolidColorBrush x:Key="LogAccent" Color="#E9AE8D"/>
+  <SolidColorBrush x:Key="SelectionInk" Color="#352A22"/>
+  <SolidColorBrush x:Key="SelectionFill" Color="#EBD6C5"/>
+  <FontFamily x:Key="DisplayFace">Noto Serif SC, STZhongsong, SimSun</FontFamily>
+  <LinearGradientBrush x:Key="FiredClay" StartPoint="0,0.9" EndPoint="1,0.1">
+   <GradientStop Color="#783A2B" Offset="0"/><GradientStop Color="#994630" Offset=".52"/><GradientStop Color="#A7543B" Offset="1"/>
+  </LinearGradientBrush>
+
+  <Style TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/></Style>
+  <Style x:Key="QuietType" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+   <Setter Property="Foreground" Value="{StaticResource MutedInk}"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="FontSize" Value="13"/>
+  </Style>
+  <Style x:Key="Heading" TargetType="TextBlock"><Setter Property="FontFamily" Value="{StaticResource DisplayFace}"/><Setter Property="FontSize" Value="32"/><Setter Property="FontWeight" Value="Bold"/><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
+  <Style x:Key="H2" TargetType="TextBlock"><Setter Property="FontFamily" Value="{StaticResource DisplayFace}"/><Setter Property="FontSize" Value="19"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style x:Key="Panel" TargetType="Border"><Setter Property="Background" Value="{StaticResource Sheet}"/><Setter Property="BorderBrush" Value="{StaticResource Edge}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="12"/><Setter Property="Padding" Value="18"/></Style>
+  <Style TargetType="Button">
+   <Setter Property="Background" Value="{StaticResource Sheet}"/><Setter Property="Foreground" Value="{StaticResource Ink}"/><Setter Property="BorderBrush" Value="{StaticResource ButtonEdge}"/>
+   <Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="13,7"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="FontSize" Value="13"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+    <Grid><Border x:Name="Shell" CornerRadius="6" BorderThickness="{TemplateBinding BorderThickness}" BorderBrush="{TemplateBinding BorderBrush}" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+     <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True"/></Border><Border x:Name="FocusRing" Margin="2" CornerRadius="4" BorderThickness="1" BorderBrush="{TemplateBinding Foreground}" IsHitTestVisible="False" Visibility="Collapsed"/></Grid>
+    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+     <Trigger Property="IsPressed" Value="True"><Setter TargetName="Shell" Property="Opacity" Value=".77"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Shell" Property="Opacity" Value=".46"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="FocusRing" Property="Visibility" Value="Visible"/><Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="{StaticResource Accent}"/><Setter Property="Foreground" Value="{StaticResource OnAccent}"/><Setter Property="BorderBrush" Value="{StaticResource Accent}"/></Style>
+  <Style x:Key="LinkButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="Foreground" Value="{StaticResource Accent}"/><Setter Property="Padding" Value="8,7"/></Style>
+  <Style x:Key="Nav" TargetType="RadioButton"><Setter Property="Cursor" Value="Hand"/><Setter Property="Foreground" Value="{StaticResource MutedInk}"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Padding" Value="12,9"/><Setter Property="Margin" Value="2,0"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
+    <Border x:Name="NavBg" BorderThickness="1" BorderBrush="Transparent" Background="Transparent" CornerRadius="7" Padding="{TemplateBinding Padding}">
+    <StackPanel Orientation="Horizontal"><Path Width="15" Height="15" Margin="0,0,7,0" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.55" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Stretch="Uniform" Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"/><ContentPresenter VerticalAlignment="Center"/></StackPanel></Border>
+    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavBg" Property="Background" Value="{StaticResource SoftFill}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="NavBg" Property="Background" Value="{StaticResource ClayWash}"/><Setter Property="Foreground" Value="{StaticResource Accent}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="NavBg" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="TextBox">
+   <Setter Property="Foreground" Value="{StaticResource Ink}"/><Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
+   <Setter Property="SelectionBrush" Value="{StaticResource SoftAccent}"/><Setter Property="SelectionOpacity" Value=".46"/>
+   <Setter Property="Padding" Value="10,7"/><Setter Property="BorderBrush" Value="{StaticResource ButtonEdge}"/><Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Background" Value="{StaticResource Field}"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox">
+    <Border x:Name="FieldFrame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5">
+     <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}" VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"/>
+    </Border>
+    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="FieldFrame" Property="BorderBrush" Value="{StaticResource SoftAccent}"/></Trigger>
+     <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FieldFrame" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="CheckBox"><Setter Property="Foreground" Value="{StaticResource Ink}"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox"><StackPanel Orientation="Horizontal">
+    <Border x:Name="CheckFrame" Width="16" Height="16" Margin="0,0,6,0" CornerRadius="3" Background="{StaticResource Field}" BorderBrush="{StaticResource ButtonEdge}" BorderThickness="1" VerticalAlignment="Center">
+     <Path x:Name="Tick" Data="M2,7 L5,10 L12,3" Stroke="{StaticResource OnAccent}" StrokeThickness="1.6" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/></Border>
+    <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True"/></StackPanel>
+    <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Tick" Property="Visibility" Value="Visible"/><Setter TargetName="CheckFrame" Property="Background" Value="{StaticResource Accent}"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="CheckFrame" Property="BorderBrush" Value="{StaticResource Ink}"/></Trigger>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="CheckFrame" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="{StaticResource SoftFill}"/><Setter Property="Foreground" Value="{StaticResource MutedInk}"/><Setter Property="Padding" Value="10,10"/><Setter Property="BorderThickness" Value="0"/><Setter Property="FontSize" Value="12"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style TargetType="DataGridCell"><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="10,4"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridCell"><Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"><ContentPresenter VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value></Setter>
+   <Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{StaticResource SelectionFill}"/><Setter Property="Foreground" Value="{StaticResource SelectionInk}"/></Trigger></Style.Triggers>
+  </Style>
+
+  <Style x:Key="GalleryCard" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/><Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Card" BorderBrush="{StaticResource Edge}" BorderThickness="1" Background="{StaticResource Sheet}" CornerRadius="10" Padding="5"><ContentPresenter HorizontalAlignment="Stretch"/></Border>
+    <ControlTemplate.Triggers><Trigger Property="IsPressed" Value="True"><Setter TargetName="Card" Property="Opacity" Value=".84"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Accent}"/><Setter TargetName="Card" Property="Background" Value="{StaticResource HoverSheet}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="Card" Property="Opacity" Value=".55"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </Window.Resources>
+ <Grid x:Name="PaperPage" Background="{StaticResource Paper}"><Grid.RowDefinitions><RowDefinition Height="64"/><RowDefinition Height="*"/><RowDefinition Height="40"/></Grid.RowDefinitions>
+ <Border Background="{StaticResource HeaderPaper}" BorderBrush="{StaticResource Edge}" BorderThickness="0,0,0,1" Padding="24,0"><DockPanel LastChildFill="False">
+  <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+   <Image x:Name="BrandIcon" Width="34" Height="34" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=Window}}"/>
+   <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}" FontFamily="{StaticResource DisplayFace}" FontWeight="Bold" FontSize="20"/><Border Height="22" Width="1" Background="{StaticResource Edge}" Margin="20,0"/>
+  </StackPanel>
+  <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+   <RadioButton x:Name="NavHome" GroupName="Pages" Style="{StaticResource Nav}" Content="工作台" IsChecked="True" Tag="M2,2 H9 V9 H2 Z M13,2 H20 V9 H13 Z M2,13 H9 V20 H2 Z M13,13 H20 V20 H13 Z"/>
+   <RadioButton x:Name="NavLedger" GroupName="Pages" Style="{StaticResource Nav}" Content="迁移台账" Tag="M3,2 H18 V20 H3 Z M7,7 H14 M7,11 H14 M7,15 H12"/>
+   <RadioButton x:Name="NavActions" GroupName="Pages" Style="{StaticResource Nav}" Content="账号操作" Tag="M2,6 H18 M14,2 L18,6 L14,10 M18,16 H2 M6,12 L2,16 L6,20"/>
+   <RadioButton x:Name="NavLog" GroupName="Pages" Style="{StaticResource Nav}" Content="任务记录" Tag="M2,3 H20 V19 H2 Z M5,8 L8,11 L5,14 M11,14 H16"/>
+  </StackPanel>
+ </DockPanel></Border>
+ <Grid Grid.Row="1" Margin="28,19,28,12">
+  <ScrollViewer x:Name="Home" VerticalScrollBarVisibility="Auto"><StackPanel Margin="1,0,5,8">
+   <DockPanel Margin="0,0,0,15"><Button x:Name="Refresh" DockPanel.Dock="Right" VerticalAlignment="Center" Content="刷新本地数据" ToolTip="重新读取本地台账和快照"/><StackPanel><TextBlock Style="{StaticResource Heading}" Text="关注工作台"/><TextBlock x:Name="Snapshot" Style="{StaticResource QuietType}" Margin="1,2,0,0" Text="正在读取关注快照…"/></StackPanel></DockPanel>
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1.58*"/><ColumnDefinition Width=".95*"/></Grid.ColumnDefinitions>
+    <Border x:Name="ProgressCard" Background="{StaticResource FiredClay}" CornerRadius="12" MinHeight="146" Padding="24,16" Margin="0,0,12,0">
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="108"/></Grid.ColumnDefinitions>
+      <StackPanel VerticalAlignment="Center"><TextBlock Foreground="{StaticResource HeroQuiet}" FontSize="14" FontWeight="SemiBold" Text="迁移进度"/>
+       <StackPanel Orientation="Horizontal" Margin="0,1,0,0"><TextBlock x:Name="CompletedCount" FontFamily="Georgia, Cambria" Foreground="{StaticResource HeroInk}" FontWeight="Normal" FontSize="42" Text="—"/>
+        <TextBlock Foreground="{StaticResource HeroQuiet}" FontSize="15" Margin="9,0,5,6" VerticalAlignment="Bottom" Text="/"/><TextBlock x:Name="LedgerCount" Foreground="{StaticResource HeroQuiet}" FontFamily="Segoe UI" FontSize="18" VerticalAlignment="Bottom" Margin="0,0,0,5" Text="—"/></StackPanel>
+       <WrapPanel Margin="0,4,0,0"><Ellipse Width="6" Height="6" Fill="{StaticResource HeroComplete}" Margin="0,0,5,0"/><TextBlock Text="已完成" Foreground="{StaticResource HeroQuiet}" FontSize="12" Margin="0,0,13,0"/><Ellipse Width="6" Height="6" Fill="{StaticResource HeroHeld}" Margin="0,0,5,0"/><TextBlock x:Name="RestrictedLabel" Foreground="{StaticResource HeroQuiet}" FontSize="12" Margin="0,0,13,0" Text="受限保留 —"/><Ellipse Width="6" Height="6" Fill="{StaticResource HeroPending}" Margin="0,0,5,0"/><TextBlock x:Name="PendingLabel" Foreground="{StaticResource HeroQuiet}" FontSize="12" Text="待处理 —"/></WrapPanel>
+      </StackPanel>
+      <Grid Grid.Column="1" Width="94" Height="94"><Ellipse Margin="5" Stroke="{StaticResource HeroTrack}" StrokeThickness="6"/><Path x:Name="RestrictedArc" Stroke="{StaticResource HeroHeld}" StrokeThickness="6"/><Path x:Name="CompleteArc" Stroke="{StaticResource HeroComplete}" StrokeThickness="6" StrokeStartLineCap="Flat" StrokeEndLineCap="Flat"/>
+       <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock x:Name="ProgressText" Foreground="{StaticResource HeroInk}" FontFamily="Georgia, Cambria" FontSize="21" FontWeight="Normal" HorizontalAlignment="Center" Text="—"/><TextBlock Text="完成率" Foreground="{StaticResource HeroQuiet}" FontSize="11" HorizontalAlignment="Center"/></StackPanel>
+      </Grid></Grid>
+    </Border>
+    <Border Grid.Column="1" Style="{StaticResource Panel}" Padding="18,8"><Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="1"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <DockPanel><TextBlock x:Name="Following" DockPanel.Dock="Right" FontFamily="Georgia, Cambria" FontSize="30" FontWeight="Normal" Text="—"/><StackPanel Orientation="Horizontal"><Border Width="28" Height="28" CornerRadius="8" Background="{StaticResource ClayWash}" Margin="0,0,10,0"><Path Stroke="{StaticResource Accent}" StrokeThickness="1.55" Data="M8,8 A3,3 0 1 0 8,2 A3,3 0 1 0 8,8 Z M2,15 Q2,10 8,10 Q14,10 14,15" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="快照关注" Foreground="{StaticResource MutedInk}"/></StackPanel></DockPanel>
+      <Border Grid.Row="1" Background="{StaticResource Edge}"/>
+      <DockPanel Grid.Row="2"><TextBlock x:Name="RegistryCount" DockPanel.Dock="Right" FontFamily="Georgia, Cambria" FontSize="30" FontWeight="Normal" Text="—"/><StackPanel Orientation="Horizontal"><Border Width="28" Height="28" CornerRadius="8" Background="{StaticResource SageWash}" Margin="0,0,10,0"><Path Stroke="{StaticResource SageInk}" StrokeThickness="1.5" Data="M2,2 H13 V15 H2 Z M5,6 H10 M5,9 H10" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="取关登记" Foreground="{StaticResource MutedInk}"/></StackPanel></DockPanel>
+    </Grid></Border>
+   </Grid>
+   <DockPanel Margin="0,19,0,10"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button x:Name="Rebuild" Style="{StaticResource LinkButton}" Content="从快照重建" Margin="0,0,8,0"/><Button x:Name="Online" Style="{StaticResource Primary}" Content="在线更新审阅数据…"/></StackPanel><TextBlock Style="{StaticResource H2}" Text="审阅画廊"/></DockPanel>
+   <UniformGrid Columns="3"><Button x:Name="Review" Style="{StaticResource GalleryCard}" Margin="0,0,8,0" AutomationProperties.Name="低作品审阅"><StackPanel>
+      <Border x:Name="ReviewArt" Height="144" CornerRadius="6" Background="{StaticResource SoftFill}"><Border CornerRadius="6" Background="#16C49C70" IsHitTestVisible="False"/></Border>
+      <Grid Margin="10,10,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <StackPanel><TextBlock Text="低作品审阅" FontFamily="{StaticResource DisplayFace}" FontWeight="SemiBold" FontSize="18"/><TextBlock x:Name="ReviewCount" Foreground="{StaticResource MutedInk}" FontWeight="Normal" FontSize="12" Margin="0,3,0,0" Text="—"/></StackPanel>
+       <Border Grid.Column="1" Width="28" Height="28" CornerRadius="14" Background="{StaticResource SoftFill}" VerticalAlignment="Center"><Path Data="M2,7 H12 M8,3 L12,7 L8,11" Stroke="{StaticResource MutedInk}" StrokeThickness="1.4" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+      </Grid></StackPanel></Button><Button x:Name="Stale" Style="{StaticResource GalleryCard}" Margin="4,0,4,0" AutomationProperties.Name="停更审阅"><StackPanel>
+      <Border x:Name="StaleArt" Height="144" CornerRadius="6" Background="{StaticResource SoftFill}"><Border CornerRadius="6" Background="#16C49C70" IsHitTestVisible="False"/></Border>
+      <Grid Margin="10,10,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <StackPanel><TextBlock Text="停更审阅" FontFamily="{StaticResource DisplayFace}" FontWeight="SemiBold" FontSize="18"/><TextBlock x:Name="StaleCount" Foreground="{StaticResource MutedInk}" FontWeight="Normal" FontSize="12" Margin="0,3,0,0" Text="—"/></StackPanel>
+       <Border Grid.Column="1" Width="28" Height="28" CornerRadius="14" Background="{StaticResource SoftFill}" VerticalAlignment="Center"><Path Data="M2,7 H12 M8,3 L12,7 L8,11" Stroke="{StaticResource MutedInk}" StrokeThickness="1.4" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+      </Grid></StackPanel></Button><Button x:Name="Suspect" Style="{StaticResource GalleryCard}" Margin="8,0,0,0" AutomationProperties.Name="改名与内容变更"><StackPanel>
+      <Border x:Name="SuspectArt" Height="144" CornerRadius="6" Background="{StaticResource SoftFill}"><Border CornerRadius="6" Background="#16C49C70" IsHitTestVisible="False"/></Border>
+      <Grid Margin="10,10,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <StackPanel><TextBlock Text="改名与内容变更" FontFamily="{StaticResource DisplayFace}" FontWeight="SemiBold" FontSize="18"/><TextBlock x:Name="SuspectCount" Foreground="{StaticResource MutedInk}" FontWeight="Normal" FontSize="12" Margin="0,3,0,0" Text="—"/></StackPanel>
+       <Border Grid.Column="1" Width="28" Height="28" CornerRadius="14" Background="{StaticResource SoftFill}" VerticalAlignment="Center"><Path Data="M2,7 H12 M8,3 L12,7 L8,11" Stroke="{StaticResource MutedInk}" StrokeThickness="1.4" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+      </Grid></StackPanel></Button></UniformGrid>
+   <Border Style="{StaticResource Panel}" Padding="16,13" Margin="0,17,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource SoftFill}" Margin="0,0,11,0" VerticalAlignment="Top"><Path Stroke="{StaticResource HeaderInk}" StrokeThickness="1.55" StrokeLineJoin="Round" Data="M8,1 L14,3 V8 Q14,12 8,15 Q2,12 2,8 V3 Z M5,8 L7,10 L11,6" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+    <StackPanel Grid.Column="1"><WrapPanel><TextBlock FontWeight="Bold" Text="项目自检" Margin="0,0,12,0"/><TextBlock x:Name="CheckResult" FontSize="12" Foreground="{StaticResource MutedInk}" Text="—"/></WrapPanel><TextBlock x:Name="Warnings" Style="{StaticResource QuietType}" FontSize="12" Foreground="{StaticResource Caution}" Margin="0,3,5,0"/></StackPanel>
+    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="Report" Style="{StaticResource LinkButton}" Content="查看报告" Margin="0,0,5,0"/><Button x:Name="Check" Content="运行自检"/></StackPanel>
+   </Grid></Border>
+  </StackPanel></ScrollViewer>
+  <Grid x:Name="Ledger" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <StackPanel Margin="0,0,0,16"><TextBlock Style="{StaticResource Heading}" Text="迁移台账"/><TextBlock Style="{StaticResource QuietType}" Text="逐条查看大号关注、小号取关和核验备注。" Margin="1,2,0,0"/></StackPanel>
+   <Border Grid.Row="1" Style="{StaticResource Panel}" Padding="0"><Grid Margin="9"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <DockPanel Margin="6,4,6,13"><TextBlock x:Name="MatchCount" DockPanel.Dock="Right" Style="{StaticResource QuietType}" VerticalAlignment="Center" Margin="15,0,0,0"/><CheckBox x:Name="PendingOnly" DockPanel.Dock="Right" VerticalAlignment="Center" Content="仅待处理" Margin="10,0"/><StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource QuietType}" Text="搜索" Margin="0,0,8,0"/><TextBox x:Name="Search" Width="243" AutomationProperties.Name="搜索昵称或抖音号" ToolTip="输入昵称或抖音号"/></StackPanel></DockPanel>
+    <DataGrid Grid.Row="1" Foreground="{StaticResource Ink}" x:Name="Rows" HorizontalScrollBarVisibility="Auto" CanUserAddRows="False" IsReadOnly="True" AutoGenerateColumns="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource Rule}" AlternatingRowBackground="{StaticResource AltRow}" RowBackground="{StaticResource Sheet}" Background="{StaticResource Sheet}" BorderThickness="0" SelectionMode="Single" RowHeight="36">
+     <DataGrid.Columns><DataGridTextColumn Header="编号" Binding="{Binding Id}" Width="60"/><DataGridTextColumn Header="昵称" Binding="{Binding Name}" Width="1.25*"/><DataGridTextColumn Header="抖音号" Binding="{Binding Account}" Width="1.1*"/>
+      <DataGridTemplateColumn Header="大号" SortMemberPath="MainLabel" Width="97"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{StaticResource ClayWash}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left"><TextBlock Foreground="{StaticResource Accent}" FontSize="12" Text="{Binding MainLabel}"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+      <DataGridTemplateColumn Header="小号" SortMemberPath="AltLabel" Width="97"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{StaticResource SageWash}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left"><TextBlock Foreground="{StaticResource SageInk}" FontSize="12" Text="{Binding AltLabel}"/></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+      <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="1.6*"/></DataGrid.Columns>
+    </DataGrid>
+   </Grid></Border>
+  </Grid>
+  <ScrollViewer x:Name="Actions" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel Margin="0,0,5,8"><TextBlock Style="{StaticResource Heading}" Text="账号操作"/><TextBlock Style="{StaticResource QuietType}" Margin="1,2,0,19" Text="核对名单，或在两个账号之间迁移关注。"/>
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1.65*"/><ColumnDefinition Width="1*"/></Grid.ColumnDefinitions>
+    <Border Style="{StaticResource Panel}" Padding="21" VerticalAlignment="Top" Margin="0,0,12,0"><StackPanel>
+     <TextBlock Style="{StaticResource H2}" Text="批量取关"/><TextBlock Style="{StaticResource QuietType}" Margin="0,4,0,18" Text="读取画廊导出的决定名单或 CSV，自动排除已标记保留的账号。"/>
+     <TextBlock FontWeight="SemiBold" Text="决定名单" Margin="0,0,0,6"/><DockPanel><Button x:Name="Browse" DockPanel.Dock="Right" Margin="7,0,0,0" Content="选择文件…"/><TextBox x:Name="ListFile" AutomationProperties.Name="名单路径" ToolTip="选择 TXT、TSV 或 CSV 文件"/></DockPanel>
+     <TextBlock FontWeight="SemiBold" Text="处理上限" Margin="0,17,0,6"/><WrapPanel><TextBox x:Name="Limit" Width="73" AutomationProperties.Name="处理数量上限"/><TextBlock Style="{StaticResource QuietType}" Text="个账号，留空处理全部候选" Margin="9,0,0,0"/></WrapPanel>
+     <Border Height="1" Background="{StaticResource Edge}" Margin="0,21,0,14"/><WrapPanel><Button x:Name="Preview" Style="{StaticResource Primary}" Content="本地预览" Margin="0,0,7,5"/><Button x:Name="Dry" Content="在线核对" Margin="0,0,7,5"/><Button x:Name="Execute" Background="{StaticResource DangerWash}" BorderBrush="{StaticResource DangerEdge}" Foreground="{StaticResource Danger}" Content="执行取关…" Margin="0,0,0,5"/></WrapPanel>
+    </StackPanel></Border>
+    <StackPanel Grid.Column="1"><Border Style="{StaticResource Panel}" Padding="18"><StackPanel>
+     <TextBlock Style="{StaticResource H2}" Text="增量迁移"/><TextBlock Style="{StaticResource QuietType}" Text="先确认大号已关注，再由小号取关。" Margin="0,4,0,13"/>
+     <Grid Margin="0,0,0,13"><Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Canvas Width="20" Height="61"><Line X1="7" X2="7" Y1="12" Y2="48" Stroke="{StaticResource Edge}" StrokeThickness="1.5"/><Ellipse Canvas.Left="3" Canvas.Top="9" Width="8" Height="8" Fill="{StaticResource SoftAccent}"/><Ellipse Canvas.Left="3" Canvas.Top="44" Width="8" Height="8" Fill="{StaticResource Accent}"/></Canvas>
+      <StackPanel Grid.Column="1"><TextBlock><Run Foreground="{StaticResource MutedInk}" FontSize="12">来源 · 小号　</Run><Run x:Name="AltOwner" FontFamily="Segoe UI" FontWeight="SemiBold">尚未绑定</Run></TextBlock><TextBlock Margin="0,14,0,0"><Run Foreground="{StaticResource MutedInk}" FontSize="12">目标 · 大号　</Run><Run x:Name="MainOwner" FontFamily="Segoe UI" FontWeight="SemiBold">尚未绑定</Run></TextBlock></StackPanel>
+     </Grid><Button x:Name="Transfer" Content="开始增量迁移…" HorizontalAlignment="Left"/>
+    </StackPanel></Border><Border Style="{StaticResource Panel}" Padding="18" Margin="0,12,0,0"><StackPanel><TextBlock Style="{StaticResource H2}" Text="取关登记"/><TextBlock Style="{StaticResource QuietType}" Text="比对大号关注列表，检查重新关注的账号。" Margin="0,4,0,12"/><Button x:Name="Registry" Content="刷新登记表" HorizontalAlignment="Left"/></StackPanel></Border></StackPanel>
+   </Grid></StackPanel></ScrollViewer>
+  <Grid x:Name="Log" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <StackPanel Margin="0,0,0,16"><TextBlock Style="{StaticResource Heading}" Text="任务记录"/><TextBlock Style="{StaticResource QuietType}" Text="本次启动以来的执行输出与错误详情。" Margin="1,2,0,0"/></StackPanel>
+   <Border Grid.Row="1" Background="{StaticResource LogRim}" CornerRadius="11" Padding="16,12"><DockPanel><Grid DockPanel.Dock="Top" Margin="0,0,0,10"><StackPanel Orientation="Horizontal"><Path Stroke="{StaticResource LogAccent}" StrokeThickness="1.6" Data="M1,2 L6,7 L1,12 M9,12 H15" Margin="0,0,8,0" VerticalAlignment="Center"/><TextBlock Foreground="{StaticResource LogInk}" FontWeight="SemiBold" Text="执行输出"/></StackPanel></Grid><Grid>
+    <TextBox x:Name="Output" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" Background="{StaticResource LogField}" Foreground="{StaticResource LogInk}" BorderThickness="0" FontFamily="Consolas, Microsoft YaHei UI" FontSize="13" Padding="13"/>
+    <TextBlock IsHitTestVisible="False" x:Name="LogEmpty" Text="运行任务后，输出将在这里显示。" Margin="15" VerticalAlignment="Top" Foreground="{StaticResource LogMuted}"/>
+   </Grid></DockPanel></Border>
+  </Grid>
+ </Grid>
+ <Border Grid.Row="2" Background="{StaticResource HeaderPaper}" BorderBrush="{StaticResource Edge}" BorderThickness="0,1,0,0" Padding="23,3"><DockPanel>
+  <Button x:Name="Stop" DockPanel.Dock="Right" IsEnabled="False" Visibility="Collapsed" Margin="8,0,0,0" Padding="10,3" Content="中止任务" Foreground="{StaticResource Danger}"/>
+  <Button x:Name="ShowLog" DockPanel.Dock="Right" Content="查看记录　›" Style="{StaticResource LinkButton}" Padding="8,2"/>
+  <Ellipse x:Name="StatusDot" DockPanel.Dock="Left" Width="7" Height="7" Fill="{StaticResource SageInk}" Margin="0,0,8,0"/>
+  <TextBlock x:Name="Status" FontSize="12" Foreground="{StaticResource MutedInk}" Text="就绪" TextTrimming="CharacterEllipsis"/>
+ </DockPanel></Border></Grid></Window>
