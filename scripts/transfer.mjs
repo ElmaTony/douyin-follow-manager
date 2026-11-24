@@ -8,7 +8,7 @@
  *
  * 用法: node scripts/transfer.mjs [BATCH]   默认每轮处理 5 个
  */
-import { launch, log, sleep, randInt, DATA, loadLedger, saveLedger } from './lib.mjs';
+import { launch, log, sleep, randInt, loadLedger, saveLedger } from './lib.mjs';
 import fs from 'node:fs';
 import { confirmedStatus, isOwner, selfInfo } from './account-checks.mjs';
 

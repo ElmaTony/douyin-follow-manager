@@ -3,7 +3,7 @@
   <h1>Guanxu · Douyin Follow Manager</h1>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
   <p><strong>Review, organize and transfer your own Douyin follows on Windows.</strong></p>
-  <p><a href="#download">Download v0.4.0</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
+  <p><a href="#download">Download v0.4.1</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
   <img src="assets/dashboard.png" width="840" alt="Dashboard with a fictional follow snapshot and three review galleries">
   <p><sub>All accounts, counts and migration results shown here are fictional. The application interface is in Chinese.</sub></p>
 </div>
@@ -12,7 +12,7 @@
 
 | Platform | Package | Requirements |
 | --- | --- | --- |
-| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.4.0/douyin-follow-manager-0.4.0-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.4.0/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
+| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.4.1/douyin-follow-manager-0.4.1-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.4.1/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
 
 Extract the entire ZIP to a writable folder. It includes the compiled application, its scripts and the Playwright dependency. [All releases](https://github.com/ElmaTony/douyin-follow-manager/releases).
 

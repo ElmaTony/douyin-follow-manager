@@ -1,5 +1,17 @@
 # 更新记录 / Changelog
 
+## [v0.4.1](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.4.1) · 2026-11-24
+
+### 维护与复测
+
+- 桌面和画廊复测默认不保存截图。需要检查画面时，桌面复测使用 `-KeepScreenshots`，画廊复测使用 `--keep-screenshots`。截图保存在所测项目的数据目录内。
+- 桌面复测结束后清理测试名单、辅助脚本和进程编号文件。发版收尾会核验下载文件，再清理本地旧安装包、临时解压目录及过期日志。历史发布仍可在 GitHub 下载。
+
+### English
+
+- Desktop and gallery checks save screenshots only when requested. Use `-KeepScreenshots` for the desktop or `--keep-screenshots` for the gallery. Images stay in the data folder under test.
+- Desktop checks remove their sample list, helper script and process ID file on exit. Release housekeeping verifies the downloads, then removes superseded local packages, temporary extracts and obsolete logs. Previous releases remain available on GitHub.
+
 ## [v0.4.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.4.0) · 2026-11-24
 
 ### 多画廊审阅

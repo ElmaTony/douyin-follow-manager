@@ -1,4 +1,4 @@
-/** 无登录浏览器复测。--offline 阻止联网，截图仅保存在所测画廊目录下。 */
+/** 无登录浏览器复测。--offline 阻止联网，加 --keep-screenshots 可将截图保存在所测画廊目录下。 */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -11,7 +11,7 @@ const args = process.argv.slice(2);
 const offline = args.includes('--offline');
 const target = path.resolve(args.find(arg => !arg.startsWith('--')) || path.join(DATA, 'suspect_gallery.html'));
 const galleryDir = path.dirname(target);
-const output = offline ? await fs.mkdtemp(path.join(galleryDir, '.gallery-qa-')) : galleryDir;
+const output = args.includes('--keep-screenshots') ? await fs.mkdtemp(path.join(galleryDir, '.gallery-qa-')) : null;
 const url = file => pathToFileURL(file).href;
 async function settleDecisions(page) {
   await page.waitForFunction(async()=>{
@@ -223,11 +223,11 @@ try {
   });
   await page.reload({waitUntil:'domcontentloaded'});
   await page.locator('.card').first().waitFor();
-  await page.screenshot({path:path.join(output, 'qa_gallery.png')});
+  if (output) await page.screenshot({path:path.join(output, 'qa_gallery.png')});
   await page.emulateMedia({colorScheme:'dark'});
   await page.setViewportSize({width:390,height:844});
   await fits();
-  if (offline) await page.screenshot({path:path.join(output, 'mobile-dark.png')});
+  if (offline && output) await page.screenshot({path:path.join(output, 'mobile-dark.png')});
   await page.emulateMedia({colorScheme:'light'});
   await page.setViewportSize({width:1440,height:900});
   const cover = page.locator('.card:has(.cover:nth-child(2)) .cover').first();
@@ -239,7 +239,7 @@ try {
   assert.ok(await page.locator('#lbNext').isDisabled());
   await page.keyboard.press('Home');
   assert.ok(await page.locator('#lbPrev').isDisabled());
-  await page.screenshot({path:path.join(output, 'qa_lightbox.png')});
+  if (output) await page.screenshot({path:path.join(output, 'qa_lightbox.png')});
   if (offline) {
     // 本地图像只用于尺寸、缩放和键盘回归，截图保留实际缺图状态。
     await page.locator('.slide img.active').evaluate(async img => {
@@ -259,7 +259,8 @@ try {
   assert.deepEqual(errors, []);
   if (offline) { await checkLongReview(browser); await checkProfileTab(browser); await checkCrossDecisions(browser); }
 
-  console.log('灯箱 / 键盘 / 深色布局通过；截图目录', output);
+  console.log('灯箱 / 键盘 / 深色布局通过');
+  if (output) console.log('截图目录',output);
 } finally {
   await browser.close();
 }
@@ -474,13 +475,16 @@ async function checkCrossDecisions(browser) {
     assert.ok(combined.get(sec)==='取关' && (!alt || combined.get(alt)==='保留'));
     assert.ok([...combined.keys()].every(id=>eligible.has(id)),'冻结账号不能混入合并名单');
     const [exported]=await Promise.all([page.waitForEvent('download'),page.locator('#btnDown').click()]);
-    const temp=await fs.mkdtemp(path.join(output,'gallery-list-'));
+    const temp=await fs.mkdtemp(path.join(galleryDir,'.gallery-list-'));
     try {
       const list=path.join(temp,'decisions.txt'); await exported.saveAs(list);
       const {loadUnfollowList}=await import('./unfollow_list.mjs');
       const preview=loadUnfollowList(list);
       assert.ok(preview.duplicate===0 && preview.items.length===1 && preview.items[0].sec_uid===sec,'账号操作预览应仅列出明确的取关决定');
-    } finally { await fs.rm(temp,{recursive:true,force:true}); }
+    } finally {
+      await fs.rm(path.join(temp,'decisions.txt'),{force:true});
+      await fs.rmdir(temp);
+    }
     const elsewhere=await rows(second,'combined');
     assert.ok(JSON.stringify([...combined])===JSON.stringify([...elsewhere]));
     if(alt) await undo(second);

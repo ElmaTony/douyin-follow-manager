@@ -1,4 +1,5 @@
 ﻿# Run in a fresh STA PowerShell process after building the executable.
+param([switch]$KeepScreenshots)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 $root = Split-Path $PSScriptRoot -Parent
@@ -29,9 +30,9 @@ function Click-Button([string]$Name) {
     $button.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 }
 function Assert-Ui([bool]$Ok,[string]$Message) { if (!$Ok) { throw $Message } }
-$testDir = Join-Path ([IO.Path]::GetTempPath()) ('followdesk-qa-' + [Guid]::NewGuid().ToString('N'))
-$null = [IO.Directory]::CreateDirectory($testDir)
+$testDir = Join-Path (Join-Path $root 'data') ('.desktop-qa-' + [Guid]::NewGuid().ToString('N'))
 function Save-Window([string]$filename) {
+    if (!$KeepScreenshots) { return }
     $window.UpdateLayout()
     $dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ApplicationIdle)
     $window.UpdateLayout()
@@ -44,6 +45,7 @@ function Save-Window([string]$filename) {
     try { $encoder.Save($stream) } finally { $stream.Dispose() }
 }
 $expected = Get-Content -LiteralPath (Join-Path $root 'data/ledger.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$null = [IO.Directory]::CreateDirectory($testDir)
 try {
     $window.Show()
     Wait-Ui { $window.FindName('LedgerCount').Text -match '^[\d,]+$' -and $window.FindName('Refresh').IsEnabled }
@@ -111,7 +113,13 @@ try {
         Assert-Ui ($task.Result -ne 0 -and $worker.WaitForExit(3000)) 'Stopped task left a worker running'
     } finally { $runner.Dispose() }
     Write-Output "PASS: dashboard, ledger search, pending filter, self-check, warning output, preview, invalid input, minimum size, child-process cancellation"
-    Write-Output $screen
+    if ($KeepScreenshots) { Write-Output $screen }
 } finally {
-    $window.Close()
+    try { $window.Close() } finally {
+        foreach ($name in '带空格 & (测试).txt','tree.mjs','child.pid') {
+            $file = Join-Path $testDir $name
+            if (Test-Path -LiteralPath $file -PathType Leaf) { Remove-Item -LiteralPath $file -ErrorAction Stop }
+        }
+        if (!(Get-ChildItem -LiteralPath $testDir -Force)) { [IO.Directory]::Delete($testDir) }
+    }
 }
