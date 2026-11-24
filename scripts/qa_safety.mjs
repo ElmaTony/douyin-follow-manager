@@ -333,6 +333,8 @@ test('主题变化须有两条不同的新旧文案，重复、并列和共有�
   const {topicChange} = await import('./topic-change.mjs');
   const old=['旅行一','旅行二'], now=['烹饪一','美食二'];
   assert.equal(topicChange(old,now).label,'旅行 → 美食');
+  assert.equal(topicChange(old,['新品甲同款下单折扣','新品乙同款团购促销']),null);
+  assert.equal(topicChange(old,['商品选品教程','电商运营案例']).label,'旅行 → 电商');
   assert.equal(topicChange([old[0],old[0]],now),null);
   assert.equal(topicChange([...old,...now],now),null);
   assert.equal(topicChange([...old,...now,'旅行三'],[...now,'美食三']),null);

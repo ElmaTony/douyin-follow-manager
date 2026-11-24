@@ -15,6 +15,7 @@
 
 - 跨画廊入口显示另一个画廊的入选理由，包括主页或列表作品数、距最近已知发布的天数、历史昵称或本轮改名。资料不足、异常保留及名单保护在各画廊统一生效。
 - 「从快照重建」会重新分析改名线索。只发生全半角或首尾空格变化的昵称不计为改名。前后两次快照昵称相同、但台账有不同旧名时，标为「历史名称不同」。缺少主页核验的线索会保留供查看，等待核验后再决定。
+- 两条作品文案仅重复同款、下单或折扣等推广措辞时，不再据此判定内容转向。主题变化仍须有不同文案支持具体题材。
 - 本轮作品日期不可见时，若旧快照已经记录近 30 天内的发布，停更画廊会排除该账号。
 
 ### English
@@ -25,6 +26,7 @@
 - The export preview counts each decision type. Download filenames include the scope, snapshot date and export time.
 - Undo follows shared authors in the current tab. A single-author view limits undo to that person. Revision checks preserve newer edits made in other tabs, including edits that ended on the same choice. The tab keeps its last 50 manual edits for the snapshot.
 - Return through a chain of galleries without losing the author. Cross-snapshot and missing-author links explain what changed.
+- Repeated calls to buy, product matches and discounts alone no longer count as a change of topic. A shift requires distinct captions supporting a concrete subject.
 - Cross-gallery links show the evidence behind each match. Offline rebuilds recheck name history, distinguish historical names from changes since the previous snapshot and ignore width or surrounding-space differences. Authors with incomplete verification have the same review restrictions in every gallery. A recently documented post excludes an author from inactivity review even when its date disappears in the current sample.
 
 ## [v0.3.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.3.0) · 2026-11-24
