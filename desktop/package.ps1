@@ -17,7 +17,7 @@ try {
         '关序.exe','README.md','README_EN.md','CHANGELOG.md','assets/dashboard.png','assets/ledger.png',
         'desktop/desk.svg','desktop/status.mjs','package.json','package-lock.json','node_modules/playwright-core',
         'scripts/account-checks.mjs', 'scripts/batch_unfollow.mjs', 'scripts/build_suspects_latest.mjs',
-    'scripts/core.mjs', 'scripts/doctor.mjs', 'scripts/driver2.mjs',
+    'scripts/topic-change.mjs','scripts/recent-works.mjs','scripts/compare_snapshots.mjs','scripts/core.mjs', 'scripts/doctor.mjs', 'scripts/driver2.mjs',
     'scripts/final_verify.mjs', 'scripts/finalize.mjs', 'scripts/gallery-client.js',
     'scripts/gallery-lightbox.js', 'scripts/gallery.css', 'scripts/gallery.mjs',
     'scripts/gen_review_gallery.mjs', 'scripts/gen_stale_gallery.mjs', 'scripts/gen_suspect_gallery.mjs',

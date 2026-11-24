@@ -21,7 +21,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
-[assembly: AssemblyVersion("0.1.0.0")]
+[assembly: AssemblyVersion("0.2.0.0")]
 [assembly: AssemblyTitle("关序")]
 [assembly: AssemblyProduct("关序")]
 [assembly: AssemblyDescription("关注迁移与审阅工具")]
@@ -48,7 +48,7 @@ namespace FollowDesk {
     }
     public sealed class Snapshot { public string date {get;set;} public int count {get;set;} }
     public sealed class Overview {
-        public LedgerRow[] ledger {get;set;} public Snapshot snapshot {get;set;}
+        public LedgerRow[] ledger {get;set;} public Snapshot snapshot {get;set;} public bool canCompare {get;set;}
         public Dictionary<string,int?> galleries {get;set;} public string report {get;set;}
         public string mainOwner {get;set;} public string altOwner {get;set;}
         public int? registry {get;set;} public string[] warnings {get;set;}
@@ -87,6 +87,7 @@ namespace FollowDesk {
                 TaskButton(entry.Key,()=>Run("打开审阅画廊","open",role));
             }
             TaskButton("Check",()=>Run("项目自检","check"));
+            TaskButton("Compare",()=>Run("快照变化对比","diff"));
             TaskButton("Rebuild",()=>Run("重建三个画廊","gallery","all"));
             TaskButton("Online",()=>Confirm("更新审阅数据？","将使用大号读取关注列表和作品，核验后更新本地快照和三个画廊。关注较多时可能需要较长时间。")
                 ? Run("在线更新审阅数据","refresh") : Task.FromResult(0));
@@ -237,6 +238,12 @@ namespace FollowDesk {
         }
         void Controls() {
             foreach(var b in taskButtons) b.IsEnabled=!busy && !refreshing;
+            var compare=Get<Button>("Compare");
+            compare.IsEnabled=!busy && !refreshing && data!=null && data.canCompare;
+            compare.ToolTip=data!=null && data.canCompare ? "对比并保存本轮变化清单" : "完成两次在线更新后可以对比变化";
+            var rebuild=Get<Button>("Rebuild");
+            rebuild.IsEnabled=!busy && !refreshing && data!=null && data.snapshot!=null;
+            rebuild.ToolTip=data!=null && data.snapshot!=null ? "用已采集的本地数据重建画廊" : "先在线更新一次，生成关注快照";
             foreach(var name in galleryButtons.Keys) {
                 int? count=null;
                 if(data!=null && data.galleries!=null) data.galleries.TryGetValue(galleryButtons[name],out count);

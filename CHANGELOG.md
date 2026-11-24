@@ -1,5 +1,36 @@
 # 更新记录 / Changelog
 
+## [v0.2.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.2.0) · 2026-11-24
+
+从 v0.1.0 升级后，可以先对比两次关注快照，集中审阅本轮有变化的博主，再按当前筛选导出决定名单。
+
+### 审阅与导出
+
+- 三个画廊支持「只看本轮变化」「多画廊命中」和「未标记 · 无封面」。可以组合分类与标记状态、按粉丝数或停更时间排序，搜索昵称、曾用名、抖音号和文案。卡片显示变化依据及其他画廊的待核原因，跨画廊查看同一博主后可返回原筛选与批次位置。
+- 可撤销上次标记，筛选条件会随画廊保存。大图预览支持标记后切换到下一位有封面的未标博主，并提示剩余无封面账号。修复手动标记一位时把系统锁定或预设保留的其他账号一起写入决定记录的问题；已有标记原样保留。
+- 复制和下载名单可选「当前结果」或「整个画廊」，默认跟随当前筛选，并显示可导出人数。受保护账号会被排除；空结果可一键清除筛选，零条可导出记录时禁用复制和下载。浏览器拦截批量打开主页时，成功复制的链接会计入已交付批次，复制失败可从原处重试。
+
+### 分类与作品
+
+- 低作品画廊优先使用主页核验的作品数，支持筛选 0 部、1–5 部和 6–19 部。私密账号、作品数未知或与可见记录不符时单列待核。停更按快照时点的完整天数分档，上次确实看到过的发布日期也会纳入判断；仅有作品数而缺少可见日期时单列待核。
+- 区分历史曾用名与上次采集以来的改名。主题变化须由前后多条不同文案支持，卡片可查看对应证据。重复文案、同一批共有样本及证据并列的主题不会单独触发判定。
+- 近期作品按发布时间排列，同一条作品的封面、日期、文案及原作链接一起展示，支持视频和图文。封面加载失败会尝试备用地址；旧快照无法对应原作时会注明历史封面。修正卡片与作品预览跨午夜显示不同日期的问题。
+
+### 桌面与采集
+
+- 工作台新增「对比上次快照」，按稳定账号标识生成本地 CSV，列出新增、移出、改名、抖音号、粉丝数和作品数变化，以及可见作品更新、恢复发布、进入停更观察、可见日期回退和作品数跨过 20 部门槛等情况。首次采集前禁用重建，取得两次有效快照后才启用对比。
+- 在线采集分批保存作品与主页核验进度。中断后六小时内重新更新，会核对账号和当前关注名单，复用可用结果，补查新增、未完成和作品数已变化的记录。修复续采时旧缓存覆盖新作品的问题；旧快照补图失败可单独重试。
+- 发布本地快照与画廊前先校验整批文件，避免损坏文件导致部分画廊提前替换。更新了项目自检、离线回归和桌面、浏览器操作测试。
+
+### English
+
+- Compare two follow snapshots and export a CSV covering membership, names, IDs, counts, publication activity and threshold crossings. The desktop enables comparison and rebuilding when their inputs are ready.
+- Combine change, cross-gallery, decision and missing-cover filters. Search former names and captions, sort results, undo a mark, or inspect the same author in another gallery and return to your saved position. Protected and preset rows are no longer stored as manual decisions when marking someone else.
+- Export the filtered results or the entire gallery, with eligible counts shown before copying or downloading. Clear filters in one click. Successfully copied fallback profile links advance the batch cursor; failed copies can be retried.
+- Low-post and inactivity categories use verified counts, full-day boundaries and previously observed publication dates. Limited visibility is flagged for review. Renames are dated against the previous snapshot, and topic changes require distinct evidence on both sides.
+- Browse dated video and photo posts with matched covers, captions and original links. Use the cover viewer to mark and advance, then review authors without covers. Alternative cover URLs, legacy-cover labels and consistent calendar dates improve older snapshots and missing images.
+- Resume interrupted collection within six hours after rechecking the account and following list. Recent results take precedence over stale checkpoints. Failed legacy cover lookups can be retried independently, and all pending local output files are validated before replacement.
+
 ## [v0.1.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.1.0) · 2026-11-23
 
 首个 Windows 公开版本，包含关注工作台、迁移台账、账号操作与任务记录。

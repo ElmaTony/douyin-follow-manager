@@ -28,24 +28,53 @@ function setScale(target,pointer,animate){
 }
 function openLb(sec,idx){
   const d=byId.get(sec);if(!d||!(d.covers||[]).length)return;
+  if(lb.sec!==sec) lbRunway.replaceChildren();
+  document.getElementById('lbZoom').classList.remove('on');
   lb.sec=sec;lb.idx=Math.min(idx,d.covers.length-1);lb.scale=1;lb.tx=0;lb.ty=0;lb.idealTx=0;lb.idealTy=0;lb.drag=null;lb.moved=false;
-  lbEl.showModal();renderLb();document.body.style.overflow='hidden';
+  if(!lbEl.open) lbEl.showModal();
+  renderLb();document.body.style.overflow='hidden';
 }
 function renderLb(){
   const d=byId.get(lb.sec);if(!d)return;
   const covers=d.covers||[];
-  lbRunway.innerHTML=covers.map((u,i)=>'<div class="slide" data-i="'+i+'"><span class="missing" hidden>封面暂不可用</span><img src="'+esc(u)+'" alt="作品封面"></div>').join('');
+  const works = d.posts?.filter(p=>p.cover);
+  if (!lbRunway.childElementCount) lbRunway.innerHTML=covers.map((u,i)=>'<div class="slide" data-i="'+i+'"><span class="missing" hidden>封面暂不可用</span><img loading="lazy" src="'+esc(u)+'" data-alternate="'+esc(works?.[i]?.alternateCover || '')+'" alt="作品封面"></div>').join('');
   lbRunway.style.transform='translateX(calc(12.5vw - '+(lb.idx*75)+'vw - '+(lb.idx*32)+'px))';
   const imgs=[...lbRunway.querySelectorAll('img')];
   imgs.forEach((img,i)=>img.classList.toggle('active',i===lb.idx));
   const act=imgs[lb.idx];
   if(act){if(!act.complete)act.addEventListener('load',()=>applyT(false),{once:true});else setTimeout(()=>applyT(false),30);}
   document.getElementById('lbWho').textContent=d.nickname;
-  document.getElementById('lbAttr').textContent=d.captions?.[lb.idx] || '';
+  const locked=fixedLabel(d);
+  $('lbKeep').disabled=$('lbUnf').disabled=Boolean(locked);
+  $('lbReviewStatus').textContent=locked || ({keep:'已标保留',unf:'已标取关'}[markOf(d.sec_uid)] || '未标记');
+  const work = works?.[lb.idx];
+  document.getElementById('lbAttr').textContent=work ? [workDate(work),work.caption].filter(Boolean).join(' · ') : '历史封面';
+  const link = document.getElementById('lbWork'), url = workUrl(work);
+  link.hidden = !url;
+  if (url) link.href=url; else link.removeAttribute('href');
   document.getElementById('lbPos').textContent=(lb.idx+1)+' / '+covers.length;
   document.getElementById('lbPrev').disabled=lb.idx===0;
   document.getElementById('lbNext').disabled=lb.idx===covers.length-1;
 }
+function markAndAdvance(mark) {
+  const current=byId.get(lb.sec);
+  if (!current || fixedLabel(current)) return;
+  const i=visible.indexOf(current);
+  const next=[...visible.slice(i+1),...visible.slice(0,i)].find(d=>d.covers?.length && !fixedLabel(d) && !markOf(d.sec_uid));
+  const button=$('content').querySelector('[data-sec="'+CSS.escape(lb.sec)+'"] [data-mark="'+mark+'"]');
+  if (!button) { closeLb(); return; }
+  button.click();
+  if (markOf(lb.sec) !== mark) { $('lbReviewStatus').textContent='未保存，请重试'; return; }
+  if (next) openLb(next.sec_uid,0);
+  else {
+    closeLb();
+    const remaining = visible.filter(d=>!d.covers?.length && !fixedLabel(d) && !markOf(d.sec_uid)).length;
+    toast(remaining ? '有封面的账号已审完，还有 '+remaining+' 位可在「未标记 · 无封面」查看' : '当前结果中的未标账号已审完');
+  }
+}
+$('lbKeep').addEventListener('click',()=>markAndAdvance('keep'));
+$('lbUnf').addEventListener('click',()=>markAndAdvance('unf'));
 function closeLb(){lbEl.close()}
 lbEl.addEventListener('close',()=>{document.body.style.overflow='';lbRunway.replaceChildren();lb.drag=null});
 function move(delta){

@@ -41,6 +41,9 @@ if (cmd !== 'refresh' && cmd !== 'help' && cmd !== '--help' && fs.existsSync(pat
   process.exit(1);
 }
 switch (cmd) {
+  case 'diff':
+    run('compare_snapshots.mjs');
+    break;
   case 'refresh':
     run('refresh_review.mjs');
     break;
@@ -91,6 +94,7 @@ switch (cmd) {
   gallery [review|suspect|stale|all]   重新生成审阅画廊
   open [review|stale|suspect] 打开审阅环境或指定画廊
   transfer                 增量转移: 前置核对 → 合并 → 自适应驱动 → 终验
+  diff                     比对最近两次快照并导出变化清单
   refresh                  在线更新快照、核验和三个画廊
   preview <名单>             本地预览 CSV / 画廊决定名单
   unfollow <名单> [--execute] 批量取关(默认在线核对)

@@ -23,6 +23,27 @@ const snapshot = !fs.existsSync(path.join(dir,'snapshot_latest.json')) ? null : 
   const date = new Date(s.exported_at);
   return {date:date.toISOString(),count:Object.keys(s.accounts).length};
 });
+if (fs.existsSync(path.join(dir,'.snapshot-progress.json'))) read('采集进度', () => {
+  const work = json('.snapshot-progress.json');
+  const age = Date.now()-Date.parse(work.exported_at);
+  if (work.exported_at === snapshot?.date || !(age >= 0 && age <= 6*3600000)) return;
+  const rows = Object.values(work.accounts || {});
+  const parts = ['本轮已保存 '+rows.filter(a=>a.fetch==='ok').length+' / '+rows.length+' 位博主的作品采集结果'];
+  if (fs.existsSync(path.join(dir,'.profile-progress.json'))) {
+    const check = json('.profile-progress.json');
+    if (check.exported_at === work.exported_at)
+      parts.push('主页已核验 '+Object.keys(check.records || {}).length+(check.total ? ' / '+check.total : '')+' 位');
+  }
+  warnings.push(parts.join('，')+'。');
+});
+let canCompare = false;
+if (snapshot && !pending && fs.existsSync(path.join(dir,'snapshot_previous.json'))) {
+  canCompare = Boolean(read('上次快照',()=>{
+    const previous = json('snapshot_previous.json');
+    return previous?.accounts && !Array.isArray(previous.accounts) && typeof previous.accounts === 'object' &&
+      Date.parse(previous.exported_at) < Date.parse(snapshot.date);
+  }));
+}
 const galleries = {};
 for (const n of ['review','stale','suspect']) galleries[n] = pending || !fs.existsSync(path.join(dir,n+'_gallery.html')) ? null : read(n+'_gallery', () =>
   galleryPayload(fs.readFileSync(path.join(dir,n+'_gallery.html'),'utf8')).data.length);
@@ -34,4 +55,4 @@ const report = read('最近自检', () => {
   return ['PASS','WARN','FAIL'].map((v,i) => levels.filter(l=>l===v).length+' '+['通过','提醒','失败'][i]).join('　');
 });
 const registry = read('取关登记表', () => Object.keys(json('unfollow_registry.json').entries).length);
-console.log(JSON.stringify({mainOwner,altOwner,ledger,snapshot,galleries,report,registry,warnings}));
+console.log(JSON.stringify({mainOwner,altOwner,ledger,snapshot,canCompare,galleries,report,registry,warnings}));

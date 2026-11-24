@@ -61,6 +61,18 @@ try {
     $pending = @($expected | Where-Object {$_.alt_unfollow -ne 'done' -and $_.main_follow -ne 'skip_restricted'})
     Assert-Ui ($window.FindName('Rows').Items.Count -eq $pending.Count) 'Pending filter failed'
     $window.FindName('NavHome').IsChecked = $true
+    $previousPath = Join-Path $root 'data/snapshot_previous.json'
+    if ((Test-Path -LiteralPath $previousPath) -and (Get-Content -LiteralPath $previousPath -Encoding UTF8 -Raw | ConvertFrom-Json).exported_at) {
+        Click-Button 'Compare'
+        Wait-Ui { $window.FindName('Status').Text -eq '快照变化对比 · 已完成' -and $window.FindName('Refresh').IsEnabled }
+        Assert-Ui ($window.FindName('Output').Text.Contains('snapshot_changes.csv')) 'Snapshot comparison did not produce a report'
+        $window.FindName('NavHome').IsChecked = $true
+    } else {
+        Assert-Ui (!$window.FindName('Compare').IsEnabled) 'Comparison must wait for two snapshots'
+    }
+    if (!(Test-Path -LiteralPath (Join-Path $root 'data/snapshot_latest.json'))) {
+        Assert-Ui (!$window.FindName('Rebuild').IsEnabled) 'Rebuild must wait for the first snapshot'
+    }
     Click-Button 'Check'
     Wait-Ui { $window.FindName('Status').Text -match '项目自检 · (已完成|完成，有提醒)' -and $window.FindName('Refresh').IsEnabled }
     Assert-Ui ($window.FindName('Output').Text.Contains('自检报告')) 'CLI output is missing'

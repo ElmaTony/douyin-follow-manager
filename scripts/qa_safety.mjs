@@ -15,8 +15,8 @@ const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-offline-'));
 const data = path.join(fixture, 'data');
 fs.mkdirSync(data);
 fs.mkdirSync(path.join(fixture,'scripts'));
-for (const name of ['local-state.mjs','account-checks.mjs','core.mjs','unfollow_list.mjs','transfer.mjs','batch_unfollow.mjs','final_verify.mjs','merge_incremental.mjs','read_suspect_state.mjs','prep_suspect_unfollow.mjs','sync_marks.mjs','preflight_incremental.mjs','update_registry.mjs','run.mjs','open_review_env.mjs','refresh_review.mjs',
-  'snapshot_main.mjs','scan_bans_latest.mjs','build_suspects_latest.mjs','gallery.mjs','gallery.css','gallery-client.js',
+for (const name of ['local-state.mjs','account-checks.mjs','core.mjs','unfollow_list.mjs','compare_snapshots.mjs','transfer.mjs','batch_unfollow.mjs','final_verify.mjs','merge_incremental.mjs','read_suspect_state.mjs','prep_suspect_unfollow.mjs','sync_marks.mjs','preflight_incremental.mjs','update_registry.mjs','run.mjs','open_review_env.mjs','refresh_review.mjs',
+  'snapshot_main.mjs','recent-works.mjs','topic-change.mjs','scan_bans_latest.mjs','build_suspects_latest.mjs','gallery.mjs','gallery.css','gallery-client.js',
   'gallery-lightbox.js','gen_review_gallery.mjs','gen_stale_gallery.mjs','gen_suspect_gallery.mjs']) {
   fs.copyFileSync(path.join(sources,name),path.join(fixture,'scripts',name));
 }
@@ -245,6 +245,12 @@ test('在线更新各阶段都成功才发布；采集失败保留原六个文�
   }
   fs.writeFileSync(path.join(ready,'manifest.json'),JSON.stringify(manifest));
   assert.notEqual(run('run',{},['gallery','all']).status,0);
+  const tail=files.at(-1), tailPath=path.join(ready,tail);
+  const intact=fs.readFileSync(tailPath);
+  fs.writeFileSync(tailPath,'corrupt');
+  assert.notEqual(run('run',{},['refresh']).status,0);
+  for (const f of files.slice(3)) assert.equal(read(f),'previous','校验失败不应替换任何画廊');
+  fs.writeFileSync(tailPath,intact);
   const recovered=run('run',{wrongOwner:true},['refresh']);
   assert.equal(recovered.status,0,recovered.stderr);assert.ok(!fs.existsSync(ready));
   for(const f of files) assert.equal(createHash('sha256').update(read(f)).digest('hex'),manifest[f]);
@@ -261,8 +267,8 @@ test('账号绑定要求完整身份且来源与目标不同', () => {
 });
 
 test('内容变化比较使用自己的前后两次快照', () => {
-  const original = {nickname:'示例旧名', captions:['绘画 水彩 素描'], covers:[]};
-  const latest = {nickname:'示例新名', captions:['烘焙 食材 菜谱'], covers:[]};
+  const original = {nickname:'示例旧名', captions:['绘画 水彩','素描练习'], covers:[]};
+  const latest = {nickname:'示例新名', captions:['烘焙 食材','周末菜谱'], covers:[]};
   write('snapshot_latest.json',{accounts:{sample:latest}});
   write('snapshot_previous.json',{accounts:{sample:original}});
   assert.equal(run('build_suspects_latest',{}).status,0);
@@ -271,4 +277,125 @@ test('内容变化比较使用自己的前后两次快照', () => {
   write('snapshot_previous.json',{});
   assert.equal(run('build_suspects_latest',{}).status,0);
   assert.deepEqual(JSON.parse(read('suspects_latest.json')),[]);
+});
+
+test('快照对比按稳定标识匹配，区分新增、移出与改名，重复时间不覆盖报告', () => {
+  const row = {nickname:'旧名', douyin_id:'demo', works:3, followers:5, times:[]};
+  write('snapshot_previous.json',{exported_at:'2024-01-01T00:00:00Z',accounts:{one:row,removed:row}});
+  const newest={exported_at:'2024-02-01T00:00:00Z',accounts:{one:{...row,nickname:'=example',works:5},added:row}};
+  write('snapshot_latest.json',newest);
+  const result=run('compare_snapshots',{});
+  assert.equal(result.status,0,result.stderr);
+  assert.match(result.stdout,/新增 1.*移出 1.*改名 1.*作品数变化 1/);
+  const report=read('snapshot_changes.csv'); assert.ok(report.includes("'=example"));
+  write('snapshot_previous.json',newest);
+  assert.notEqual(run('compare_snapshots',{}).status,0);
+  assert.equal(read('snapshot_changes.csv'),report);
+});
+
+test('停更以满天计；置顶乱序取最新，私密或有作品但无日期单独待核', () => {
+  const now = 1800000000;
+  assert.equal(staleAtSnapshot({times:[now-120*86400,now-30.9*86400]},now),null);
+  assert.equal(staleAtSnapshot({times:[],works:4},now).group,'unknown');
+  assert.equal(staleAtSnapshot({times:[],works:0},now),null);
+  assert.equal(staleAtSnapshot({times:[now-100*86400],posts:[{time:now}]},now),null);
+  assert.equal(staleAtSnapshot({times:[now],posts:[],works:4},now).group,'unknown');
+  const localMidnight=new Date(2024,0,2,0,30);
+  const oldWorks=staleAtSnapshot({times:[localMidnight.getTime()/1000]},localMidnight.getTime()/1000+95*86400);
+  assert.equal(oldWorks.dateStr,'2024-01-02');
+  const prior={times:[now-50*86400]};
+  const corrected=staleAtSnapshot({times:[now-200*86400]},now,{},prior);
+  assert.equal(corrected.group,'s3090'); assert.equal(corrected.fromHistory,true);
+  assert.equal(staleAtSnapshot({times:[],works:4},now,{},prior).group,'unknown');
+  assert.equal(staleAtSnapshot({times:[now-200*86400]},now,{secret:1}).group,'unknown');
+});
+
+test('每条作品在排序后仍与同一作者的封面、文案及原作 ID 对应', async () => {
+  const {readRecentWorks}=await import('./recent-works.mjs');
+  const raw=[{aweme_id:'11',create_time:10,desc:'较早',video:{cover:{url_list:['https://example.invalid/old']}}},
+    {aweme_id:'22',create_time:20,desc:'没有封面'},
+    {aweme_id:'33',create_time:30,images:[{url_list:['https://example.invalid/new']}]}
+  ];
+  const original=globalThis.fetch;
+  try {
+    globalThis.fetch=async()=>({text:async()=>JSON.stringify({status_code:0,aweme_list:raw})});
+    const p={evaluate:(fn,arg)=>fn(arg)};
+    const rows=await readRecentWorks(p,'demo',{});
+    assert.deepEqual(rows.map(x=>[x.id,x.caption,x.cover,x.type]),[
+      ['33','','https://example.invalid/new','note'],['22','没有封面','','video'],['11','较早','https://example.invalid/old','video']]);
+    raw[0].author={sec_uid:'other'};
+    await assert.rejects(readRecentWorks(p,'demo',{}),/作者不符/);
+  } finally {globalThis.fetch=original;}
+});
+
+test('主题变化须有两条不同的新旧文案，重复、并列和共有作品不能单独构成依据', async () => {
+  const {topicChange} = await import('./topic-change.mjs');
+  const old=['旅行一','旅行二'], now=['烹饪一','美食二'];
+  assert.equal(topicChange(old,now).label,'旅行 → 美食');
+  assert.equal(topicChange([old[0],old[0]],now),null);
+  assert.equal(topicChange([...old,...now],now),null);
+  assert.equal(topicChange([...old,...now,'旅行三'],[...now,'美食三']),null);
+});
+
+test('恢复采集时核对账号和完整关注名单，只采未完成的作品', () => {
+  reset();
+  const list = ['finished','missing'].map(sec_uid=>({sec_uid,nickname:'测试',aweme_count:1}));
+  const scene = {count:2,main:1,listResponse:{status_code:0,has_more:0,followings:list}};
+  const bad = run('snapshot_main',{...scene,posts:{status_code:1}});
+  assert.notEqual(bad.status,0);
+  const progress = JSON.parse(read('.snapshot-progress.json'));
+  assert.ok(progress.owner);
+  Object.assign(progress.accounts.finished,{fetch:'ok',posts:[{id:'111'}],times:[123],n_visible:1});
+  write('.snapshot-progress.json',progress);
+  const valid = {...scene,posts:{status_code:0,aweme_list:[{aweme_id:'222'}]}};
+  const resumed = run('snapshot_main',valid);
+  assert.equal(resumed.status,0,resumed.stderr);
+  const next = JSON.parse(read('snapshot_latest.json'));
+  assert.equal(next.accounts.finished.posts[0].id,'111');
+  assert.equal(next.accounts.missing.posts[0].id,'222');
+  write('snapshot_latest.json',{});
+  write('.snapshot-progress.json',progress);
+  const changedList = { ...valid,listResponse:{...valid.listResponse,followings:[list[0],{...list[1],sec_uid:'just-added'}]} };
+  const whenMembershipChanges = run('snapshot_main',changedList);
+  assert.equal(whenMembershipChanges.status,0,whenMembershipChanges.stderr);
+  const joined = JSON.parse(read('snapshot_latest.json')).accounts;
+  assert.equal(joined.finished.posts[0].id,'111'); assert.ok(!joined.missing);
+  assert.equal(joined['just-added'].posts[0].id,'222');
+  write('snapshot_latest.json',{});
+  write('.snapshot-progress.json',{...progress,owner:'different-fixture-owner'});
+  const fresh = run('snapshot_main',valid);
+  assert.equal(fresh.status,0,fresh.stderr);
+  assert.equal(JSON.parse(read('snapshot_latest.json')).accounts.finished.posts[0].id,'222');
+});
+
+test('同一轮续采刷新作品时，旧主页核验与旧作品不会覆盖当前记录',()=>{
+  reset();
+  const when=new Date().toISOString();
+  const sample=(works,id)=>({exported_at:when,accounts:{sample:{sec_uid:'sample',nickname:'示例',works,n_visible:1,posts:[{id}],times:[]}}});
+  write('suspects_latest.json',[]);write('snapshot_latest.json',sample(1,'101'));
+  const first=run('scan_bans_latest',{main:1}); assert.equal(first.status,0,first.stderr);
+  write('snapshot_latest.json',sample(4,'102'));
+  const next=run('scan_bans_latest',{main:0}); assert.equal(next.status,0,next.stderr);
+  assert.equal(JSON.parse(read('snapshot_latest.json')).accounts.sample.posts[0].id,'102');
+  assert.equal(JSON.parse(read('ban_latest.json'))[0].follow_status,0);
+  const reads=fs.readFileSync(path.join(fixture,'reads'),'utf8');
+  const unchanged=run('scan_bans_latest',{main:1}); assert.equal(unchanged.status,0,unchanged.stderr);
+  assert.equal(fs.readFileSync(path.join(fixture,'reads'),'utf8'),reads);
+});
+
+test('旧版快照首次补图失败后，可单独重试作品且沿用成功的主页核验',()=>{
+  reset();
+  write('suspects_latest.json',[]);
+  write('snapshot_latest.json',{exported_at:new Date().toISOString(),accounts:{
+    retry:{sec_uid:'retry',nickname:'测试',works:2,n_visible:1,times:[1700000000]}}});
+  const first=run('scan_bans_latest',{main:1,posts:{status_code:1}});
+  assert.equal(first.status,0,first.stderr);
+  assert.equal(JSON.parse(read('snapshot_latest.json')).accounts.retry.postDetailsUnavailable,true);
+  const reads=fs.readFileSync(path.join(fixture,'reads'),'utf8');
+  const next=run('scan_bans_latest',{main:1,posts:{status_code:0,aweme_list:[{aweme_id:'201',create_time:1700000000}]}});
+  assert.equal(next.status,0,next.stderr);
+  const account=JSON.parse(read('snapshot_latest.json')).accounts.retry;
+  assert.equal(account.posts[0].id,'201');
+  assert.ok(!account.postDetailsUnavailable);
+  assert.equal(fs.readFileSync(path.join(fixture,'reads'),'utf8'),reads);
 });

@@ -47,12 +47,21 @@ export const csvText = (cols, rows, bom = true) =>
   (bom ? '\uFEFF' : '') + [cols.join(','), ...rows.map((r) => r.map(escCsv).join(','))].join('\r\n');
 
 /** 由发布时间数组得出最近更新/停更天数/分级 */
+export function visibleTimes(account) {
+  return Array.isArray(account?.posts) ? account.posts.map(p=>p.time) : account?.times || [];
+}
+
+export function localDate(date) {
+  const pad = value => String(value).padStart(2,'0');
+  return [date.getFullYear(),pad(date.getMonth()+1),pad(date.getDate())].join('-');
+}
+
 export function tierOf(times, nowSec = Date.now() / 1000) {
-  const valid = (times || []).filter((t) => t > 1000000000);
+  const valid = (times || []).filter(t => Number.isFinite(t) && t > 1e9 && t < 4.1e9);
   const last = valid.length ? Math.max(...valid) : 0;
-  const gap = last ? Math.round((nowSec - last) / 86400) : null;
+  const gap = last ? Math.max(0, Math.floor((nowSec - last) / 86400)) : null;
   const tier = gap == null ? 'nopost' : gap > 90 ? 'zombie' : gap > 30 ? 'low' : 'active';
-  return { last, gap, tier, dateStr: last ? new Date(last * 1000).toISOString().slice(0, 10) : '' };
+  return { last, gap, tier, dateStr: last ? localDate(new Date(last * 1000)) : '' };
 }
 
 export const fmtFan = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + 'w' : String(n ?? '-'));
@@ -63,10 +72,24 @@ export function snapshotTime(snapshot) {
   return time / 1000;
 }
 
-export function staleAtSnapshot(account, asOf) {
-  const result = tierOf(account.times, asOf);
+export function lowWorksUncertainty(account,verified) {
+  const works = verified?.works_fresh ?? account.works;
+  if (verified?.secret) return '私密账号待核';
+  if (works == null) return '作品数未知';
+  return works < (account.posts?.length ?? account.n_visible ?? 0) ? '作品数与可见记录不符' : '';
+}
+
+export function staleAtSnapshot(account, asOf, verified, previous) {
+  const visible = tierOf(visibleTimes(account),asOf);
+  const historic = tierOf(visibleTimes(previous),asOf);
+  const fromHistory = Boolean(visible.last && historic.last > visible.last);
+  const result = fromHistory ? historic : visible;
+  if ((result.gap == null && (verified?.works_fresh ?? account.works) > 0) ||
+      (result.gap > 30 && verified?.secret)) {
+    return {...result, group:'unknown', reason:verified?.secret ? '私密账号，活动待核' : '有作品，无可见日期'};
+  }
   if (result.gap == null || result.gap <= 30) return null;
-  return { ...result, group: result.gap <= 90 ? 's3090' : result.gap <= 180 ? 's90180' : 's180' };
+  return { ...result, fromHistory, group: result.gap <= 90 ? 's3090' : result.gap <= 180 ? 's90180' : 's180' };
 }
 
 /** 读取生成页面内的静态快照，不执行页面脚本。 */

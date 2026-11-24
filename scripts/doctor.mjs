@@ -56,6 +56,7 @@ const susLatest = j(path.join(DATA, 'suspects_latest.json'));
 add(Array.isArray(susLatest) ? 'PASS' : 'WARN', '嫌疑库(新)', susLatest ? `${susLatest.length} 条` : '缺失');
 const banLatest = j(path.join(DATA, 'ban_latest.json')) || [];
 add(Array.isArray(banLatest) ? 'PASS' : 'FAIL', '处罚核验(新)', `${banLatest.length} 人, 处罚 ${banLatest.filter((b) => b.status === 'banned').length}`);
+const verifiedAccounts = new Map(banLatest.map(b=>[b.sec_uid,b]));
 const bannedLatest = new Set(banLatest.filter((b) => b.status === 'banned').map((b) => b.sec_uid));
 const accs = Object.entries(snapLatest?.accounts || {});
 
@@ -68,8 +69,9 @@ const expReview = accs.filter(([sec, a]) => {
   return (w || 0) < 20;
 }).length;
 const expSuspect = (susLatest || []).filter((x) => !bannedLatest.has(x.sec_uid)).length;
+const previousAccounts = j(path.join(DATA,'snapshot_previous.json'))?.accounts || {};
 const expStale = asOf === null ? null : accs.filter(([sec, account]) =>
-  !bannedLatest.has(sec) && staleAtSnapshot(account, asOf)
+  !bannedLatest.has(sec) && staleAtSnapshot(account, asOf, verifiedAccounts.get(sec),previousAccounts[sec])
 ).length;
 const gallerySpec = [
   { file: 'review_gallery.html', key: 'review_state_v2', expect: expReview, src: 'snapshot <20' },

@@ -3,7 +3,7 @@
   <h1>Guanxu · Douyin Follow Manager</h1>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
   <p><strong>Review, organize and transfer your own Douyin follows on Windows.</strong></p>
-  <p><a href="#download">Download v0.1.0</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
+  <p><a href="#download">Download v0.2.0</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
   <img src="assets/dashboard.png" width="840" alt="Dashboard with a fictional follow snapshot and three review galleries">
   <p><sub>All accounts, counts and migration results shown here are fictional. The application interface is in Chinese.</sub></p>
 </div>
@@ -12,7 +12,7 @@
 
 | Platform | Package | Requirements |
 | --- | --- | --- |
-| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.1.0/douyin-follow-manager-0.1.0-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.1.0/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
+| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.2.0/douyin-follow-manager-0.2.0-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.2.0/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
 
 Extract the entire ZIP to a writable folder. It includes the compiled application, its scripts and the Playwright dependency. [All releases](https://github.com/ElmaTony/douyin-follow-manager/releases).
 
@@ -30,8 +30,15 @@ Extract the entire ZIP to a writable folder. It includes the compiled applicatio
 
 1. Install [Node.js](https://nodejs.org/) and [Google Chrome](https://www.google.com/chrome/), then unpack the ZIP.
 2. Open PowerShell in the extracted folder. Run `node scripts/setup.mjs main` to sign in to the destination account in the browser. Return to the terminal and confirm the displayed account number. If you plan to transfer follows, run `node scripts/setup.mjs alt` to bind a separate source account.
-3. Open `关序.exe` and select **在线更新审阅数据** to collect your first snapshot. Comparing caption topics requires two snapshots.
-4. Export `decisions.txt` from a gallery and preview it under **账号操作**. Only explicit unfollow decisions enter the candidate list. Confirm the account roles before starting a migration.
+3. Open `关序.exe` and select **在线更新审阅数据** to collect your first snapshot. If collection is interrupted, run the update again within six hours. It rechecks the following list and retrieves missing works or accounts whose work count changed. Comparing caption topics requires two snapshots.
+4. Combine category and decision filters, search former names and captions, sort by inactivity or follower count, and undo the last mark. After collecting two snapshots, **对比上次快照** writes a per-account change report to `data/snapshot_changes.csv`.
+5. Choose the current results or the entire gallery before copying or downloading. The count excludes protected accounts. Use **清除筛选** to restore the full list. Export `decisions.txt` from a gallery and preview it under **账号操作**. Only explicit unfollow decisions enter the candidate list. Confirm the account roles before starting a migration.
+
+## Reviewing large lists
+
+Combine **只看本轮变化** (changes since the previous snapshot) with the unmarked filter. **多画廊命中** lists authors who appear in more than one gallery. A card can open that same author in the other gallery.
+
+Expand recent works to open original posts, or mark a decision in the cover viewer and continue to the next unmarked author with a cover. Inactivity uses completed days. Missing dates, limited visibility and conflicting counts are labeled for review. Caption shifts require evidence from multiple captions.
 
 ## Preview
 

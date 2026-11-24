@@ -15,18 +15,26 @@ const digest = file => createHash('sha256').update(fs.readFileSync(file)).digest
 
 function publish() {
   const hashes = JSON.parse(fs.readFileSync(path.join(ready,'manifest.json'),'utf8'));
-  for (const name of [...files, ...(Object.hasOwn(hashes, 'snapshot_previous.json') ? ['snapshot_previous.json'] : [])]) {
+  const pending = [];
+  const names = Object.hasOwn(hashes,'snapshot_previous.json') ? [...files,'snapshot_previous.json'] : files;
+  for (const name of names) {
     const from = path.join(ready,name), to = path.join(data,name);
-    const pending = fs.existsSync(from);
-    if (digest(pending ? from : to) !== hashes[name]) throw new Error('待发布内容校验失败：' + name);
-    if (pending) fs.renameSync(from,to);
+    const staged = fs.existsSync(from);
+    if (digest(staged ? from : to) !== hashes[name]) throw new Error('待发布内容校验失败：' + name);
+    if (staged) pending.push({from,to});
   }
+  for (const {from,to} of pending) fs.renameSync(from,to);
   // Rename the completed transaction before removing its manifest. An interruption here is harmless.
   const done = fs.mkdtempSync(path.join(data,'.review-finished-'));
   fs.renameSync(ready,path.join(done,'published'));
   fs.unlinkSync(path.join(done,'published','manifest.json'));
   fs.rmdirSync(path.join(done,'published'));
   fs.rmdirSync(done);
+  const publishedAt = readJson(path.join(data,'snapshot_latest.json'))?.exported_at;
+  if (publishedAt) for (const name of ['.snapshot-progress.json','.profile-progress.json']) {
+    const progress = path.join(data,name);
+    if (readJson(progress)?.exported_at === publishedAt) fs.rmSync(progress,{force:true});
+  }
   console.log('最新快照、处罚核验和三个审阅画廊已发布。');
 }
 if (fs.existsSync(ready)) {
