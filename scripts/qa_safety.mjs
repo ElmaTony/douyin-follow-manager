@@ -15,7 +15,7 @@ const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-offline-'));
 const data = path.join(fixture, 'data');
 fs.mkdirSync(data);
 fs.mkdirSync(path.join(fixture,'scripts'));
-for (const name of ['local-state.mjs','account-checks.mjs','core.mjs','unfollow_list.mjs','compare_snapshots.mjs','transfer.mjs','batch_unfollow.mjs','final_verify.mjs','merge_incremental.mjs','read_suspect_state.mjs','prep_suspect_unfollow.mjs','sync_marks.mjs','preflight_incremental.mjs','update_registry.mjs','run.mjs','open_review_env.mjs','profile-tab.mjs','refresh_review.mjs',
+for (const name of ['local-state.mjs','account-checks.mjs','core.mjs','unfollow_list.mjs','compare_snapshots.mjs','transfer.mjs','batch_unfollow.mjs','unfollow-action.mjs','final_verify.mjs','merge_incremental.mjs','read_suspect_state.mjs','prep_suspect_unfollow.mjs','sync_marks.mjs','preflight_incremental.mjs','update_registry.mjs','run.mjs','open_review_env.mjs','profile-tab.mjs','gallery-unfollow.mjs','gallery-queue.js','refresh_review.mjs',
   'snapshot_main.mjs','recent-works.mjs','topic-change.mjs','scan_bans_latest.mjs','build_suspects_latest.mjs','gallery.mjs','gallery.css','gallery-client.js','gallery-profiles.js', 'gallery-decisions.js',
   'gallery-lightbox.js','gen_review_gallery.mjs','gen_stale_gallery.mjs','gen_suspect_gallery.mjs']) {
   fs.copyFileSync(path.join(sources,name),path.join(fixture,'scripts',name));
@@ -216,7 +216,7 @@ test('接口提前报告末页时，迁移前置核对仍须比对来源账号�
 });
 
 test('指定画廊只打开其本地地址，关闭后顺利结束；缺失画廊会报错',()=>{
-  write('stale_gallery.html','local');
+  for (const name of ['review','suspect','stale']) write(name+'_gallery.html','<button id="openQueue"></button>');
   const opened=run('run',{review:true},['open','stale']);
   assert.equal(opened.status,0,opened.stderr);
   const urls=fs.readFileSync(path.join(fixture,'review-urls'),'utf8').trim().split('\n').map(line=>JSON.parse(line));

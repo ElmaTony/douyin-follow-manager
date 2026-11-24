@@ -103,7 +103,7 @@ for (const f of ['crosscheck.csv', 'ledger.csv', 'unfollow_report.csv']) {
 const must = ['lib.mjs', 'core.mjs', 'gallery.mjs', 'run.mjs', 'doctor.mjs', 'transfer.mjs', 'batch_unfollow.mjs',
   'preflight_incremental.mjs', 'merge_incremental.mjs', 'final_verify.mjs', 'finalize.mjs', 'update_registry.mjs',
   'setup.mjs', 'gen_review_gallery.mjs', 'gen_suspect_gallery.mjs', 'gen_stale_gallery.mjs',
-  'snapshot_main.mjs', 'local-state.mjs', 'open_review_env.mjs', 'profile-tab.mjs', 'gallery.css', 'gallery-client.js', 'gallery-profiles.js', 'gallery-decisions.js', 'gallery-lightbox.js', 'account-checks.mjs'];
+  'snapshot_main.mjs', 'local-state.mjs', 'open_review_env.mjs', 'profile-tab.mjs','gallery-unfollow.mjs','gallery-queue.js','unfollow-action.mjs', 'gallery.css', 'gallery-client.js', 'gallery-profiles.js', 'gallery-decisions.js', 'gallery-lightbox.js', 'account-checks.mjs'];
 const missScripts = must.filter((f) => !fs.existsSync(path.join(PROJ, 'scripts', f)));
 add(missScripts.length ? 'FAIL' : 'PASS', '核心脚本齐全', missScripts.length ? '缺: ' + missScripts.join(',') : `${must.length} 个`);
 

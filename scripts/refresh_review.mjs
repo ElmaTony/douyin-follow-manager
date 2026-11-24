@@ -47,7 +47,7 @@ if (fs.existsSync(ready)) {
     fs.mkdirSync(staged);
     const previous = readJson(path.join(data,'snapshot_latest.json'));
     fs.writeFileSync(path.join(staged,'snapshot_previous.json'),JSON.stringify(previous?.accounts ? previous : {}));
-    for (const file of ['data/ledger.json','data/user_keep_list.json','data/review_pending.json','data/gallery_preset_keep.json']) {
+    for (const file of ['data/ledger.json','data/user_keep_list.json','data/review_pending.json','data/unfollow_registry.json','data/gallery_preset_keep.json']) {
       if (!fs.existsSync(path.join(root,file))) continue;
       fs.mkdirSync(path.dirname(path.join(work,file)),{recursive:true});
       fs.copyFileSync(path.join(root,file),path.join(work,file));

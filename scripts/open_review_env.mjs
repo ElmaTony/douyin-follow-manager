@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { attachGalleryUnfollow } from './gallery-unfollow.mjs';
 import { attachProfileTab } from './profile-tab.mjs';
 import { DATA, launch } from './lib.mjs';
 
@@ -16,10 +17,19 @@ const targets = (selected ? [files.get(selected)] : [...files.values()]).map(nam
   return pathToFileURL(file).href;
 });
 if (!selected) targets.push('https://www.douyin.com/');
+// Upgrade generated pages in place so existing bookmarks and review decisions still work.
+for (const [kind,name] of files) {
+  const file=path.join(DATA,name);
+  if (fs.existsSync(file) && !fs.readFileSync(file,'utf8').includes('id="openQueue"')) {
+    await import('./gen_'+kind+'_gallery.mjs');
+  }
+}
 const { context, page } = await launch('main');
 const closed = new Promise(resolve => context.once('close', resolve));
 try {
-  await attachProfileTab(context,[...files.values()].map(name=>path.join(DATA,name)));
+  const galleryPaths=[...files.values()].map(name=>path.join(DATA,name));
+  await attachGalleryUnfollow(context,galleryPaths);
+  await attachProfileTab(context,galleryPaths);
   for (const [i, target] of targets.entries()) {
     const tab = i ? await context.newPage() : page;
     await tab.goto(target, { waitUntil: 'domcontentloaded' });

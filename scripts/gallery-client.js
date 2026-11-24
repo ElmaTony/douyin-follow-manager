@@ -1,4 +1,4 @@
-const { data: DATA, union, key: KEY, rowKey: ROWKEY, groups: GROUPS, presetKeep, protectedIds, filters: FILTERS, snapshotAt, timeZone } =
+const { data: DATA, union, receipts: initialReceipts, key: KEY, rowKey: ROWKEY, groups: GROUPS, presetKeep, protectedIds, filters: FILTERS, snapshotAt, timeZone } =
   JSON.parse(document.getElementById('gallery-data').textContent);
 const currentGallery = document.querySelector('nav [aria-current="page"]').getAttribute('href');
 const byId = new Map(DATA.map(d => [d.sec_uid, d]));
@@ -6,7 +6,9 @@ const protectedSet = new Set(protectedIds);
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
 const profile = sec => 'https://www.douyin.com/user/' + encodeURIComponent(sec);
-const fixedLabel = d => d.badgeFix || (protectedSet.has(d.sec_uid) ? '名单保留' : '');
+let receipts = initialReceipts || {};
+const completed = sec => Date.parse(receipts[sec]?.at)>=Date.parse(snapshotAt);
+const fixedLabel = d => (completed(d.sec_uid) ? '已取关登记' : '') || d.badgeFix || (protectedSet.has(d.sec_uid) ? '名单保留' : '');
 const fmt = n => n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n ?? '—');
 
 let state = readMarks();
@@ -212,7 +214,7 @@ function card(d) {
     ${(d.changeFacts || []).map(f=>'<p class="meta">'+esc(f)+'</p>').join('')}${extras}${workList(d)}
     ${(d.alsoIn || []).map(g=>'<a class="other-gallery" href="'+esc(authorLink(g.href,d.sec_uid,[...incomingTrail,currentGallery],rootFocused))+'">'+esc(g.name)+(g.note ? ' · '+esc(g.note) : '')+' ↗</a>').join('')}</div>
     <div class="ops">${locked ? `<button class="b-lock" disabled>${esc(locked)} · 不可标记</button>` :
-      `<button class="b-unf" data-mark="unf" aria-pressed="${mark === 'unf'}">取关</button>
+      `<button class="b-unf" data-mark="unf" aria-pressed="${mark === 'unf'}">待取关</button>
        <button class="b-keep" data-mark="keep" aria-pressed="${mark === 'keep'}">保留</button>
        <button class="b-reset" data-mark="none" ${mark ? '' : 'disabled'} title="移出已决定名单，回到未标记队列">移回未审</button>`}</div></article>`;
 }
@@ -290,13 +292,13 @@ async function applyDecision(sec,mark) {
   return withDecisionLock(sec,()=>{
     const previous = recordFor(sec);
     const current = previous?.mark ?? readLegacy()[sec] ?? '';
-    const effective = effectiveMark(sec,current);
+    const effective = effectiveMark(sec,readMarks()[sec]);
     if (effective !== seen) {
       state = readMarks(); render(); toast('此账号刚在其他页更改，请核对后再标记'); return false;
     }
-    if (current === mark) return true;
+    if (current === mark && seen===mark) return true;
     const rev = crypto.randomUUID();
-    localStorage.setItem(decisionPrefix+sec,JSON.stringify({mark,rev}));
+    localStorage.setItem(decisionPrefix+sec,JSON.stringify({mark,rev,at:new Date().toISOString()}));
     state[sec] = mark;
     historyStack.push({sec,previous,rev,index:lbEl.open && lb.sec===sec ? lb.idx : 0});
     if (historyStack.length>50) historyStack.shift();
@@ -434,14 +436,15 @@ $('seg').addEventListener('click', e => {
   if (button) { filter = button.dataset.f; changeView(); }
 });
 function exportRows(scope) {
-  if (scope==='combined') return union.filter(d=>decided(markOf(d.sec_uid)));
-  return scope==='all' ? exportable : visible.filter(d=>!fixedLabel(d));
+  if (scope==='combined') return union.filter(d=>!completed(d.sec_uid) && decided(markOf(d.sec_uid)));
+  return scope==='all' ? exportable.filter(d=>!fixedLabel(d)) : visible.filter(d=>!fixedLabel(d));
 }
 function updateExport() {
+  updateQueueButton();
   const scope = $('exportScope');
   const count = visible.filter(d=>!fixedLabel(d)).length;
   scope.options[0].textContent = '当前结果（'+count+' 位）';
-  scope.options[1].textContent = '整个画廊（'+exportable.length+' 位）';
+  scope.options[1].textContent = '整个画廊（'+exportRows('all').length+' 位）';
   const combined = exportRows('combined').length;
   scope.options[2].textContent = '三个画廊已标记（'+combined+' 位）';
   const rows=exportRows(scope.value);

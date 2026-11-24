@@ -21,7 +21,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
-[assembly: AssemblyVersion("0.4.1.0")]
+[assembly: AssemblyVersion("0.5.0.0")]
 [assembly: AssemblyTitle("关序")]
 [assembly: AssemblyProduct("关序")]
 [assembly: AssemblyDescription("关注迁移与审阅工具")]

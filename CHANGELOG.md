@@ -1,5 +1,21 @@
 # 更新记录 / Changelog
 
+## [v0.5.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.0) · 2026-11-24
+
+### 画廊内取关
+
+- 三个画廊共用待取关名单。点卡片或在作品预览中连续标记后，可在画廊内逐人核对、取消勾选，一次确认即可执行。
+- 切换画廊后仍可查看本批进度和逐人结果。已核实未关注的账号即时登记并退出待处理和导出名单。失败项保留，可单独重试。
+- 画廊和文件导入共用大号身份、目标账号及关注状态核对。确认名单后更新的标记会重新核对，防止误取关。文件导入和在线核对在后台运行。
+- 打开旧版生成的画廊时会更新操作入口，沿用原有审阅标记。已统一历史发版标题格式。
+
+### English
+
+- Review one deduplicated queue shared by all three galleries. Mark authors on a card or in the cover viewer, uncheck anyone to defer, and confirm the batch in place.
+- Switch galleries while a batch runs and inspect individual results. Verified unfollows go straight into the local register and leave pending lists and exports. Unresolved entries can be retried separately.
+- Gallery execution and file imports share checks for the signed-in account, author identity and live follow state. Decisions are checked again before acting. File imports and online checks run in the background.
+- Previously generated galleries gain the new controls when opened from the desktop and retain their review marks. Historical release titles now follow one format.
+
 ## [v0.4.1](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.4.1) · 2026-11-24
 
 ### 维护与复测

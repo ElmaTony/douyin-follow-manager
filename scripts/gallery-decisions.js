@@ -27,7 +27,11 @@ function readMarks() {
   try {
     const legacy = readLegacy();
     for (const d of union) {
-      const mark = recordFor(d.sec_uid)?.mark ?? legacy[d.sec_uid];
+      const record = recordFor(d.sec_uid);
+      const mark = record?.mark ?? legacy[d.sec_uid];
+      const receipt = receipts[d.sec_uid];
+      if (mark==='unf' && receipt && (completed(d.sec_uid) || (receipt.rev && receipt.rev===record?.rev) ||
+          !record?.at || Date.parse(record.at)<=Date.parse(receipt.at))) continue;
       if (mark) marks[d.sec_uid] = mark;
     }
   } catch { /* The next attempted mark reports a storage failure. */ }

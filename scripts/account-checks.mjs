@@ -20,7 +20,11 @@ export function confirmedStatus(response, secUid) {
 export async function selfInfo(ctx, common) {
   await ctx.page.goto('https://www.douyin.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
   await sleep(4000);
-  return ctx.page.evaluate(async (common) => {
+  return currentOwner(ctx.page,common);
+}
+
+export function currentOwner(page,common) {
+  return page.evaluate(async (common) => {
     const qs = new URLSearchParams({ ...common, source_type: '1', publish_video_strategy_type: '2' });
     const r = await fetch('https://www.douyin.com/aweme/v1/web/user/profile/self/?' + qs, {
       headers: { accept: 'application/json', referer: 'https://www.douyin.com/' }, credentials: 'include',

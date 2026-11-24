@@ -36,19 +36,19 @@ export function log(msg) {
  * 启动一个持久化浏览器上下文。
  * userDataDir 落盘 => 登录态跨脚本保留, 彻底绕开 agent-browser 进程被回收的问题。
  */
-export async function launch(which) {
+export async function launch(which, { background = process.env.GUANXU_BACKGROUND === '1' } = {}) {
   if (!ACCOUNTS.includes(which)) throw new Error(`unknown account: ${which}`);
   const userDataDir = path.join(PROFILES, which);
   fs.mkdirSync(userDataDir, { recursive: true });
 
   const context = await chromium.launchPersistentContext(userDataDir, {
     executablePath: CHROME,
-    headless: false,
-    viewport: null, // 跟随窗口大小(配合 --start-maximized, 网格能铺满全屏)
+    headless: background,
+    viewport: background ? {width:1440,height:900} : null,
     args: [
       '--no-first-run',
       '--no-default-browser-check',
-      '--start-maximized',
+      ...(background ? [] : ['--start-maximized']),
     ],
     locale: 'zh-CN',
     timezoneId: 'Asia/Shanghai',

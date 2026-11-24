@@ -11,11 +11,12 @@ const COMMON = {
 };
 const out = 'data/unfollow_registry.json';
 const today = new Intl.DateTimeFormat('sv-SE', {timeZone:'Asia/Taipei'}).format(new Date());
-const registry = fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8')) : {entries:{}};
-if (!registry.entries || typeof registry.entries !== 'object' || Array.isArray(registry.entries)) throw new Error('登记表格式错误');
+const loadRegistry = () => fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8')) : {entries:{}};
+function validate(registry) { if (!registry.entries || typeof registry.entries !== 'object' || Array.isArray(registry.entries)) throw new Error('登记表格式错误'); }
+validate(loadRegistry());
 
 const current = new Map();
-const main = await launch('main');
+const main = await launch('main',{background:true});
 try {
   const owner = await selfInfo(main, COMMON);
   if (!isOwner(owner, 'main') || !Number.isSafeInteger(owner.following_count)) throw new Error('大号身份或关注总数无法核实');
@@ -54,6 +55,8 @@ for (const [i,date] of dates.entries()) {
   if (!Array.isArray(rows)) throw new Error('历史关注快照格式错误');
   for (const u of rows) if (u.sec_uid) lastSeen.set(u.sec_uid,{u,date,next:dates[i+1] || today});
 }
+const registry=loadRegistry();
+validate(registry);
 for (const [sec,{u,date,next}] of lastSeen) {
   if (current.has(sec) || Object.hasOwn(registry.entries,sec)) continue;
   registry.entries[sec] = {nickname:u.nickname,douyin_id:u.douyin_id || u.unique_id || u.short_id || '',

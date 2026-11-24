@@ -7,6 +7,7 @@ import { chromium } from 'playwright-core';
 import { attachProfileTab } from './profile-tab.mjs';
 import { CHROME, DATA } from './lib.mjs';
 
+const isRecorded = (cfg,sec)=>Date.parse(cfg.receipts?.[sec]?.at)>=Date.parse(cfg.snapshotAt);
 const args = process.argv.slice(2);
 const offline = args.includes('--offline');
 const target = path.resolve(args.find(arg => !arg.startsWith('--')) || path.join(DATA, 'suspect_gallery.html'));
@@ -45,7 +46,7 @@ try {
     assert.equal(await page.locator('[data-f][aria-pressed=true]').getAttribute('data-f'), 'all');
     for (const f of cfg.filters) await click('[data-f="'+f.id+'"]');
     await click('[data-f="all"]');
-    const protectedCount = cfg.data.filter(d => d.badgeFix || cfg.protectedIds.includes(d.sec_uid)).length;
+    const protectedCount = cfg.data.filter(d => isRecorded(cfg,d.sec_uid) || d.badgeFix || cfg.protectedIds.includes(d.sec_uid)).length;
     assert.equal(await page.locator('.b-lock:disabled').count(), protectedCount);
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({width, height:900});
@@ -74,11 +75,11 @@ try {
       if (/^\d+$/.test(firstCover.id)) assert.ok((await page.locator('#lbWork').getAttribute('href')).endsWith('/'+firstCover.id));
       await page.keyboard.press('Escape');
     }
-    const reviewIndex=cfg.data.findIndex(d=>d.covers?.length && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) && !cfg.presetKeep.includes(d.sec_uid));
+    const reviewIndex=cfg.data.findIndex(d=>d.covers?.length && !isRecorded(cfg,d.sec_uid) && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) && !cfg.presetKeep.includes(d.sec_uid));
     if (reviewIndex>=0) {
       const reviewer=cfg.data[reviewIndex];
       const nextAuthor=[...cfg.data.slice(reviewIndex+1),...cfg.data.slice(0,reviewIndex)].find(d=>
-        d.covers?.length && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) && !cfg.presetKeep.includes(d.sec_uid));
+        d.covers?.length && !isRecorded(cfg,d.sec_uid) && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) && !cfg.presetKeep.includes(d.sec_uid));
       await page.locator('.card[data-sec="'+reviewer.sec_uid+'"] .cover').first().click();
       const manualBefore=await page.evaluate(()=>readMarks());
       await click('#lbKeep');
@@ -118,14 +119,14 @@ try {
     }
     await page.locator('#markFilter').selectOption('none-no-cover');
     const marked=await page.evaluate(()=>readMarks());
-    assert.equal(await cards.count(),cfg.data.filter(d=>!d.covers?.length && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) &&
+    assert.equal(await cards.count(),cfg.data.filter(d=>!d.covers?.length && !isRecorded(cfg,d.sec_uid) && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) &&
       !cfg.presetKeep.includes(d.sec_uid) && !marked[d.sec_uid]).length);
     await page.locator('#markFilter').selectOption('all');
     await page.locator('#search').fill('____empty____');
     assert.equal(await cards.count(), 0);
     assert.equal(await page.locator('#btnRow').isDisabled(), true);
     await page.locator('#search').fill('');
-    const first = cfg.data.find(d => !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid));
+    const first = cfg.data.find(d => !isRecorded(cfg,d.sec_uid) && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid));
     if (!first) continue;
     const row = page.locator('.card[data-sec="'+first.sec_uid+'"]');
     await page.evaluate(({key, sec}) => localStorage.setItem(key, JSON.stringify({[sec]:'keep'})), {key:cfg.key, sec:first.sec_uid});
@@ -150,7 +151,7 @@ try {
     }
     await page.locator('#markFilter').selectOption('all');
     const ids = () => cards.evaluateAll(nodes => nodes.map(node => node.dataset.sec));
-    const unlocked = d => !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid);
+    const unlocked = d => !isRecorded(cfg,d.sec_uid) && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid);
     if (cfg.groups.length) {
       await page.locator('#sortOrder').selectOption('oldest');
       assert.deepEqual(await ids(),[...cfg.data].sort((a,b)=>b.gap-a.gap).map(d=>d.sec_uid));
@@ -279,7 +280,7 @@ async function checkLongReview(browser) {
     };
     await page.goto(href(names[0]));
     const cfg=await page.locator('#gallery-data').evaluate(e=>JSON.parse(e.textContent));
-    const editable=cfg.data.filter(d=>d.covers?.length && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) && !cfg.presetKeep.includes(d.sec_uid));
+    const editable=cfg.data.filter(d=>d.covers?.length && !isRecorded(cfg,d.sec_uid) && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) && !cfg.presetKeep.includes(d.sec_uid));
     const author=editable.find(d=>d.covers.length>=2 && d.alsoIn?.length);
     if (!author || editable.length<3) return;
     const marks=()=>page.evaluate(()=>readMarks());
@@ -346,6 +347,7 @@ async function checkProfileTab(browser) {
     await tab.waitForURL(secondUrl);
     assert.equal(ctx.pages().length,2,'连续打开两位应共用同一页');
     assert.equal(await tab.evaluate(()=>window.guanxuOpenProfile('example')),false,'外部页面不能操作专用标签页');
+    await gallery.bringToFront();
     const [separate]=await Promise.all([ctx.waitForEvent('page'),links.first().click({modifiers:['Control']})]);
     await separate.waitForURL(firstUrl);
     assert.equal(ctx.pages().length,3,'Ctrl 单击应保留对照页');
@@ -389,11 +391,11 @@ async function checkCrossDecisions(browser) {
         assert.equal(eligible.has(sec),!row.badgeFix && !configs[i].protectedIds.includes(sec),'同一博主的可操作状态应一致');
       }
     }
-    const choices=unionIds.filter(sec=>indices[0].has(sec) && !configs[0].presetKeep.includes(sec));
+    const choices=unionIds.filter(sec=>!isRecorded(configs[0],sec) && indices[0].has(sec) && !configs[0].presetKeep.includes(sec));
     const sec=choices.find(id=>indices.every(m=>m.has(id))) || choices.find(id=>indices.slice(1).some(m=>m.has(id)));
     if (!sec) {console.log('没有可操作的交集账号，已核对分类与保护范围');return;}
     const dest=indices.findIndex((m,i)=>i>0 && m.has(sec));
-    const alt=unionIds.find(id=>id!==sec && indices[dest].has(id) && !configs[0].presetKeep.includes(id));
+    const alt=unionIds.find(id=>!isRecorded(configs[0],id) && id!==sec && indices[dest].has(id) && !configs[0].presetKeep.includes(id));
     const card=(p,id)=>p.locator('.card[data-sec="'+id+'"]');
     const mark=async(p,id,value)=>{await card(p,id).locator('[data-mark="'+value+'"]').click(); await settleDecisions(p);};
     const has=(p,id,value)=>p.waitForFunction(({id,value})=>markOf(id)===value,{id,value});

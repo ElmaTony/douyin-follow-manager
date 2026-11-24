@@ -104,7 +104,8 @@ export function buildGallery({ title, date, snapshotAt = date, data, key, rowKey
   const defaultOrder = groups.length ? '默认分组' : '默认排序';
   const keepSet = new Set(protectedIds);
   const permanent = data.filter(d => !d.badgeFix && keepSet.has(d.sec_uid)).length;
-  const payload = JSON.stringify({ data, union, sharedDecisions: true, key, rowKey, groups, presetKeep, protectedIds, filters, snapshotAt, timeZone }).replaceAll('<', '\\u003c');
+  const receipts = Object.fromEntries(Object.entries(readJson('data/unfollow_registry.json')?.entries || {}).filter(([,e])=>e.verified_at).map(([sec,e])=>[sec,{at:e.verified_at,rev:e.review_revision}]));
+  const payload = JSON.stringify({ data, union, receipts, sharedDecisions: true, key, rowKey, groups, presetKeep, protectedIds, filters, snapshotAt, timeZone }).replaceAll('<', '\\u003c');
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer"><title>${escapeHtml(title)} · 关注审阅</title><style>${css}</style></head>
@@ -126,7 +127,7 @@ export function buildGallery({ title, date, snapshotAt = date, data, key, rowKey
   <section class="controls" aria-label="筛选与名单操作">
     <div class="actions"><label class="searchbox"><i aria-hidden="true"></i><input id="search" type="search" aria-label="${searchHint}" placeholder="${searchHint}"></label>
       <div class="tools"><select id="batchSize" aria-label="每批主页数量"><option value="1">每次 1 位</option><option value="5" selected>每次 5 位</option></select><button id="btnRow" title="跳过本轮已打开或已复制的主页">打开下一批主页</button><button id="btnRowReset" title="从头重看当前结果，保留本轮主页记录" aria-label="从头重看当前结果">↺</button>
-      <select id="exportScope" aria-label="名单导出范围" title="包含范围内可审阅账号及其标记"><option value="visible">当前结果</option><option value="all">整个画廊</option><option value="combined">三个画廊已标记</option></select><button id="btnCopy" class="primary">复制决定名单</button><button id="btnDown" title="下载决定名单">下载</button></div></div>
+      <button id="openQueue" class="primary" type="button">待取关（0）</button><select id="exportScope" aria-label="名单导出范围" title="包含范围内可审阅账号及其标记"><option value="visible">当前结果</option><option value="all">整个画廊</option><option value="combined">三个画廊已标记</option></select><button id="btnCopy">复制决定名单</button><button id="btnDown" title="下载决定名单">下载</button></div></div>
     <div class="refine"><div id="seg" class="filters" role="group" aria-label="筛选账号">${buttons}</div>
     <div class="view-options"><label id="reuseSetting" class="multi-only" hidden title="单击主页或每次打开一位时共用标签页，Ctrl 或中键另开"><input type="checkbox" id="reuseProfile">复用主页标签页</label>
       <label class="multi-only" title="新增关注或与本画廊相关的数据发生变化"><input type="checkbox" id="changedOnly" ${hasPrevious?'':'disabled'}>只看本轮变化</label>
@@ -138,6 +139,11 @@ export function buildGallery({ title, date, snapshotAt = date, data, key, rowKey
   <div class="results"><strong id="resultCount"></strong><button id="conflicts" type="button" hidden></button><button id="clearFilters" type="button" hidden>清除筛选</button><a id="backToSource" hidden></a><button id="returnToList" type="button" hidden>查看本画廊原列表</button><span id="exportSummary" aria-live="polite"></span><span id="linkNotice" role="status" hidden></span><span id="rowPos"></span></div>
   <div id="content"></div>
 </main>
+<dialog id="queue" aria-labelledby="queueTitle">
+  <header><h2 id="queueTitle">核对待取关名单</h2><button id="queueClose" autofocus aria-label="关闭取关名单">关闭</button></header>
+  <p id="queueHint"></p><ol id="queueRows"></ol><p id="queueMessage" role="status"></p>
+  <footer><button id="queuePrevious" hidden>上批结果</button><button id="queueReturn">继续审阅</button><button id="queueConfirm" class="primary"></button></footer>
+</dialog>
 <dialog id="lb" aria-labelledby="lbWho">
   <div class="top"><span class="lb-author"><strong id="lbWho"></strong><a id="lbProfile" target="_blank" rel="noopener noreferrer">打开主页 ↗</a></span><span><span id="lbZoom"></span><button id="lbClose" aria-label="关闭大图" autofocus>×</button></span></div>
   <div class="lb-review"><button id="lbUndo" disabled>撤销上一笔</button><span id="lbReviewStatus" role="status"></span>
@@ -154,5 +160,6 @@ ${asset('gallery-decisions.js')}
 ${client}
 ${profiles}
 ${lightbox}
+${asset('gallery-queue.js')}
 followAccountLink();</script></body></html>`;
 }
