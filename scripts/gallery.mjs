@@ -4,6 +4,7 @@ import { readJson, snapshotTime, staleAtSnapshot, tierOf, visibleTimes, localDat
 const asset = (name) => readFileSync(new URL(name, import.meta.url), 'utf8');
 const css = asset('gallery.css');
 const client = asset('gallery-client.js');
+const profiles = asset('gallery-profiles.js');
 const lightbox = asset('gallery-lightbox.js');
 const galleries = [
   { key: 'review_state_v2', href: 'review_gallery.html', name: '低作品审阅' },
@@ -107,23 +108,23 @@ export function buildGallery({ title, date, snapshotAt = date, data, key, rowKey
   </dl></section>
   <section class="controls" aria-label="筛选与名单操作">
     <div class="actions"><label class="searchbox"><i aria-hidden="true"></i><input id="search" type="search" aria-label="${searchHint}" placeholder="${searchHint}"></label>
-      <div class="tools"><button id="btnRow">打开下 5 个主页</button><button id="btnRowReset" title="重置浏览位置" aria-label="重置浏览位置">↺</button>
+      <div class="tools"><select id="batchSize" aria-label="每批主页数量"><option value="1">每次 1 位</option><option value="5" selected>每次 5 位</option></select><button id="btnRow" title="跳过本轮已打开或已复制的主页">打开下一批主页</button><button id="btnRowReset" title="从头重看当前结果，保留本轮主页记录" aria-label="从头重看当前结果">↺</button>
       <select id="exportScope" aria-label="名单导出范围" title="包含范围内可审阅账号及其标记"><option value="visible">当前结果</option><option value="all">整个画廊</option></select><button id="btnCopy" class="primary">复制决定名单</button><button id="btnDown" title="下载决定名单">下载</button></div></div>
     <div class="refine"><div id="seg" class="filters" role="group" aria-label="筛选账号">${buttons}</div>
-    <div class="view-options">
+    <div class="view-options"><label id="reuseSetting" class="multi-only" hidden title="单击主页或每次打开一位时共用标签页，Ctrl 或中键另开"><input type="checkbox" id="reuseProfile">复用主页标签页</label>
       <label class="multi-only" title="新增关注或与本画廊相关的数据发生变化"><input type="checkbox" id="changedOnly" ${hasPrevious?'':'disabled'}>只看本轮变化</label>
       <label class="multi-only"><input type="checkbox" id="multiOnly">多画廊命中</label><select id="markFilter" aria-label="按审阅标记筛选"><option value="all">全部标记状态</option><option value="none">未标记</option><option value="none-no-cover">未标记 · 无封面</option><option value="unf">已标取关</option><option value="keep">已标保留</option></select>
       <select id="sortOrder" aria-label="结果排序"><option value="default">${defaultOrder}</option>${groups.length ? '<option value="oldest">停更最久优先</option>' : ''}<option value="followers">粉丝最多优先</option></select>
       <button id="undo" disabled>撤销上次标记</button>
     </div></div>
   </section>
-  <div class="results"><strong id="resultCount"></strong><button id="clearFilters" type="button" hidden>清除筛选</button><button id="returnToList" type="button" hidden>返回原筛选与进度</button><span id="rowPos"></span></div>
+  <div class="results"><strong id="resultCount"></strong><button id="clearFilters" type="button" hidden>清除筛选</button><a id="backToSource" hidden></a><button id="returnToList" type="button" hidden>查看本画廊原列表</button><span id="rowPos"></span></div>
   <div id="content"></div>
 </main>
 <dialog id="lb" aria-labelledby="lbWho">
-  <div class="top"><strong id="lbWho"></strong><span><span id="lbZoom"></span><button id="lbClose" aria-label="关闭大图" autofocus>×</button></span></div>
-  <div class="lb-review"><span id="lbReviewStatus" role="status"></span>
-    <button id="lbKeep" title="标记后打开当前结果中下一个有封面的未标账号">标保留并看下一位</button>
+  <div class="top"><span class="lb-author"><strong id="lbWho"></strong><a id="lbProfile" target="_blank" rel="noopener noreferrer">打开主页 ↗</a></span><span><span id="lbZoom"></span><button id="lbClose" aria-label="关闭大图" autofocus>×</button></span></div>
+  <div class="lb-review"><button id="lbUndo" disabled>撤销上一笔</button><span id="lbReviewStatus" role="status"></span>
+    <button id="lbSkip" title="这次预览暂跳过，保留现有标记">暂跳下一位</button><button id="lbKeep" title="标记后打开当前结果中下一个有封面的未标账号">标保留并看下一位</button>
     <button id="lbUnf" title="只写入审阅名单，标记后打开下一位有封面的未标账号">标取关并看下一位</button></div>
   <div class="view" id="lbView"><div class="runway" id="lbRunway"></div></div>
   <div class="bottom"><div class="attr"><span id="lbAttr"></span> <a id="lbWork" target="_blank" rel="noopener" hidden>打开原作 ↗</a></div><div class="navpill"><button id="lbPrev" aria-label="上一张">‹</button><span id="lbPos"></span><button id="lbNext" aria-label="下一张">›</button></div>
@@ -133,6 +134,7 @@ export function buildGallery({ title, date, snapshotAt = date, data, key, rowKey
 <script type="application/json" id="gallery-data">${payload}</script>
 <script>'use strict';
 ${client}
+${profiles}
 ${lightbox}
 followAccountLink();</script></body></html>`;
 }

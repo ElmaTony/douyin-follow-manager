@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
+import { attachProfileTab } from './profile-tab.mjs';
 import { CHROME, DATA } from './lib.mjs';
 
 const args = process.argv.slice(2);
@@ -171,9 +172,11 @@ try {
       window.open = () => ({opener:null, location:{replace: link => window.qaLinks.push(link)}});
     });
     await click('[data-f="all"]');
+    if (await page.locator('#btnRowReset').isEnabled()) await click('#btnRowReset');
     await click('#btnRow'); assert.equal(await page.evaluate(() => window.qaLinks.length), Math.min(cfg.data.length,5));
     await page.locator('#search').fill(first.sec_uid);
     assert.equal(await cards.count(),1);
+    if (await page.locator('#btnRowReset').isEnabled()) await click('#btnRowReset');
     await page.evaluate(() => {window.open = () => null; navigator.clipboard.writeText = async()=>{throw Error('denied')};});
     await click('#btnRow');
     assert.ok(await page.locator('#btnRow').isEnabled(),'复制失败仍可重试');
@@ -243,7 +246,106 @@ try {
   assert.equal(await page.locator('#lb').evaluate(el => el.open), false);
   assert.ok(await cover.evaluate(el => el === document.activeElement));
   assert.deepEqual(errors, []);
+  if (offline) { await checkLongReview(browser); await checkProfileTab(browser); }
+
   console.log('灯箱 / 键盘 / 深色布局通过；截图目录', output);
 } finally {
   await browser.close();
+}
+
+async function checkLongReview(browser) {
+  const context=await browser.newContext({viewport:{width:1280,height:880}});
+  try {
+    await context.route(/^https?:/,r=>r.request().resourceType()==='document' ?
+      r.fulfill({contentType:'text/html',body:'<title>Profile link test</title>'}) : r.abort());
+    const page=await context.newPage();
+    const names=['review_gallery.html','stale_gallery.html','suspect_gallery.html'];
+    const href=name=>url(path.join(DATA,name));
+    const navigate=async name=>{
+      await Promise.all([page.waitForURL(href(name)),page.locator('nav a[href="'+name+'"]').click()]);
+      await page.locator('#content').waitFor();
+    };
+    await page.goto(href(names[0]));
+    const cfg=await page.locator('#gallery-data').evaluate(e=>JSON.parse(e.textContent));
+    const editable=cfg.data.filter(d=>d.covers?.length && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) && !cfg.presetKeep.includes(d.sec_uid));
+    const author=editable.find(d=>d.covers.length>=2 && d.alsoIn?.length);
+    if (!author || editable.length<3) return;
+    const marks=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)||'{}'),cfg.key);
+    const row=page.locator('.card[data-sec="'+author.sec_uid+'"]');
+    await row.locator('.cover').nth(1).click();
+    const [profilePage]=await Promise.all([context.waitForEvent('page'), page.locator('#lbProfile').click()]);
+    await profilePage.waitForLoadState();
+    assert.ok(profilePage.url()==='https://www.douyin.com/user/'+author.sec_uid && await profilePage.evaluate(()=>window.opener===null));
+    await profilePage.close();
+    assert.match(await page.locator('#lbPos').textContent(),/^2 /);
+    await page.locator('#lbUnf').dblclick();
+    assert.equal(Object.keys(await marks()).length,1,'双击只能标记一位');
+    await page.locator('#lbUndo').click();
+    assert.deepEqual(await marks(),{});
+    assert.ok(await page.locator('#lbProfile').getAttribute('data-profile')===author.sec_uid);
+    assert.match(await page.locator('#lbPos').textContent(),/^2 /);
+    await page.locator('#lbSkip').click();
+    assert.deepEqual(await marks(),{});
+    const run=Math.min(editable.length-2,12);
+    for(let i=0;i<run;i++) await page.locator('#lbKeep').click();
+    assert.equal(Object.keys(await marks()).length,run);
+    if(await page.locator('#lb').isVisible()) await page.keyboard.press('Escape');
+    const anchor=page.locator('.card').nth(Math.floor(cfg.data.length/2));
+    await anchor.evaluate(e=>e.scrollIntoView({block:'center'}));
+    const y=await page.evaluate(()=>scrollY);
+    for(const name of [names[1],names[2],names[0]]) await navigate(name);
+    assert.ok(Math.abs(await page.evaluate(()=>scrollY)-y)<12,'返回画廊应恢复阅读位置');
+    assert.ok(await page.locator('#undo').isEnabled());
+    await page.locator('#undo').click();
+    assert.equal(Object.keys(await marks()).length,run-1);
+    await row.locator('.other-gallery').first().click();
+    await page.waitForFunction(()=>document.querySelector('#backToSource')?.hidden===false);
+    assert.ok(await page.locator('.card .plink').first().textContent()==='再看主页 ↗');
+    await page.locator('#batchSize').selectOption('1');
+    assert.ok(await page.locator('#btnRow').isDisabled(),'跨画廊跳过已打开过的主页');
+    await page.locator('#backToSource').click();
+    await page.waitForURL(href(names[0]));
+    assert.equal(await page.locator('#batchSize').inputValue(),'1');
+    console.log('三画廊往返、连续审阅 '+run+' 位、双击防误标、原作位置撤销、主页独立标签页与跨画廊去重复测通过');
+  } finally { await context.close(); }
+}
+
+async function checkProfileTab(browser) {
+  const ctx=await browser.newContext();
+  try {
+    const files=['review_gallery.html','stale_gallery.html','suspect_gallery.html'].map(name=>path.join(DATA,name));
+    await attachProfileTab(ctx,files);
+    await ctx.route(/^https?:/,r=>r.request().resourceType()==='document' ?
+      r.fulfill({contentType:'text/html',body:'<title>Example profile</title>'}) : r.abort());
+    const gallery=await ctx.newPage(); await gallery.goto(url(files[0]));
+    const links=gallery.locator('.plink');
+    if (await links.count()<3) return;
+    await gallery.locator('#reuseProfile').check();
+    const href=async i=>links.nth(i).getAttribute('href');
+    const firstUrl=await href(0);
+    const [tab]=await Promise.all([ctx.waitForEvent('page'),links.first().click()]);
+    await tab.waitForURL(firstUrl);
+    assert.ok(await tab.evaluate(()=>window.opener===null));
+    await gallery.waitForFunction(()=>document.querySelector('.plink').textContent.includes('再看'));
+    await gallery.bringToFront();
+    await gallery.locator('#batchSize').selectOption('1');
+    const secondUrl=await href(1);
+    await gallery.locator('#btnRow').click();
+    await tab.waitForURL(secondUrl);
+    assert.equal(ctx.pages().length,2,'连续打开两位应共用同一页');
+    assert.equal(await tab.evaluate(()=>window.guanxuOpenProfile('example')),false,'外部页面不能操作专用标签页');
+    const [separate]=await Promise.all([ctx.waitForEvent('page'),links.first().click({modifiers:['Control']})]);
+    await separate.waitForURL(firstUrl);
+    assert.equal(ctx.pages().length,3,'Ctrl 单击应保留对照页');
+    await separate.close();
+    await tab.goto(secondUrl+'?modal_id=1');
+    const thirdUrl=await href(2);
+    const [newTab]=await Promise.all([ctx.waitForEvent('page'),links.nth(2).click()]);
+    await newTab.waitForURL(thirdUrl);
+    assert.ok(tab.url().endsWith('?modal_id=1'),'应保留用户正在看的作品页');
+    await newTab.close();
+    const [reopened]=await Promise.all([ctx.waitForEvent('page'),links.first().click()]);
+    await reopened.waitForURL(firstUrl);
+    console.log('专用主页标签页复用、关闭后再开、保留独立浏览内容通过');
+  } finally { await ctx.close(); }
 }

@@ -3,7 +3,7 @@
   <h1>Guanxu · Douyin Follow Manager</h1>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
   <p><strong>Review, organize and transfer your own Douyin follows on Windows.</strong></p>
-  <p><a href="#download">Download v0.2.0</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
+  <p><a href="#download">Download v0.3.0</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
   <img src="assets/dashboard.png" width="840" alt="Dashboard with a fictional follow snapshot and three review galleries">
   <p><sub>All accounts, counts and migration results shown here are fictional. The application interface is in Chinese.</sub></p>
 </div>
@@ -12,7 +12,7 @@
 
 | Platform | Package | Requirements |
 | --- | --- | --- |
-| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.2.0/douyin-follow-manager-0.2.0-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.2.0/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
+| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.3.0/douyin-follow-manager-0.3.0-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.3.0/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
 
 Extract the entire ZIP to a writable folder. It includes the compiled application, its scripts and the Playwright dependency. [All releases](https://github.com/ElmaTony/douyin-follow-manager/releases).
 
@@ -39,6 +39,8 @@ Extract the entire ZIP to a writable folder. It includes the compiled applicatio
 Combine **只看本轮变化** (changes since the previous snapshot) with the unmarked filter. **多画廊命中** lists authors who appear in more than one gallery. A card can open that same author in the other gallery.
 
 Expand recent works to open original posts, or mark a decision in the cover viewer and continue to the next unmarked author with a cover. Inactivity uses completed days. Missing dates, limited visibility and conflicting counts are labeled for review. Caption shifts require evidence from multiple captions.
+
+Open one or five profiles at a time. The three galleries share profile delivery history for the current snapshot. Enable **复用主页标签页** in a desktop-launched gallery to reuse a tab, or Ctrl-click or middle-click for a separate comparison tab. From the cover viewer you can open a profile, skip an author, or undo and return to the same work. Returning to a gallery restores your reading position.
 
 ## Preview
 

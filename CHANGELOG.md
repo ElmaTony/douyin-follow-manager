@@ -1,5 +1,28 @@
 # 更新记录 / Changelog
 
+## [v0.3.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.3.0) · 2026-11-24
+
+### 画廊与主页
+
+- 从作品大图直接打开当前博主的主页，返回后继续查看同一张作品。从工作台打开画廊时，可勾选「复用主页标签页」，逐个查看不同博主。Ctrl 单击或鼠标中键仍可另开标签页作对照。
+- 关闭专用主页页签后，下次会重新打开。如果已在该页进入作品、打开作品弹层或转到其他地址，下一个主页会另开，保留正在看的内容。直接打开本地 HTML 时，主页使用普通浏览器链接。
+- 批量打开主页可选每次 1 位或 5 位。同一份快照中的三个画廊共享主页记录：默认跳过本轮已经打开或已经复制过链接的博主。卡片区分两种状态，仍可单独重看，也可从头重看当前结果。主页记录与保留、取关决定分别保存。
+- 画廊导航随页面滚动保持可用。在同一标签页切换画廊后，返回时恢复原列表的阅读位置。跨画廊定位同一博主时，页面提供返回来源画廊和查看本画廊原列表两个入口。
+
+### 连续审阅
+
+- 修复双击大图标记按钮会把同一决定写给下一位博主的问题。快速连续点击列表同一位置及长按标记按钮也有防误触处理。
+- 大图新增「暂跳下一位」和「撤销上一笔」。暂跳不会写入决定，本次连续预览会绕过暂跳者。撤销可回到刚刚标记的博主及作品。同一浏览器标签页、同一快照内切换画廊后，仍可撤销该画廊最近的手动决定，最多保留 50 笔撤销记录。
+- 修复封面加载失败时卡片高度突变的问题。关闭大图时，当前博主仍在筛选结果中会定位到对应卡片。
+
+### English
+
+- Open the author's profile directly from the cover viewer without losing the current work. Galleries launched from the desktop can reuse one profile tab for individual visits. Ctrl-click or middle-click opens a separate comparison tab. If the user has moved on to a work or another address, that tab is preserved.
+- Open profiles one or five at a time. All three galleries in the same snapshot distinguish opened profiles from links copied as a fallback. The batch skips both by default and supports replay. Profile browsing never changes review decisions.
+- Sticky gallery navigation, restored reading positions and explicit links back to the source gallery make round trips easier.
+- Double-click and repeat-key handling prevents accidental decisions during rapid review. Skip an author without marking, or undo and return to the same work. Each gallery retains up to 50 manual decisions for undo in the current tab and snapshot.
+- Failed cover images retain their layout space. Closing the viewer returns focus to the current author's card when it is still visible.
+
 ## [v0.2.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.2.0) · 2026-11-24
 
 从 v0.1.0 升级后，可以先对比两次关注快照，集中审阅本轮有变化的博主，再按当前筛选导出决定名单。

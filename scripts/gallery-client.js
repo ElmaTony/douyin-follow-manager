@@ -1,5 +1,6 @@
 const { data: DATA, key: KEY, rowKey: ROWKEY, groups: GROUPS, presetKeep, protectedIds, filters: FILTERS, snapshotAt, timeZone } =
   JSON.parse(document.getElementById('gallery-data').textContent);
+const currentGallery = document.querySelector('nav [aria-current="page"]').getAttribute('href');
 const byId = new Map(DATA.map(d => [d.sec_uid, d]));
 const protectedSet = new Set(protectedIds);
 const $ = id => document.getElementById(id);
@@ -47,7 +48,41 @@ function restoreView() {
 let visible = [];
 let copyingBatch = false;
 const exportable = DATA.filter(d=>!fixedLabel(d));
-const historyStack = [];
+const sessionKey = KEY+':review-session:'+new URL('.',location.href).href;
+let savedSession;
+try { savedSession = JSON.parse(sessionStorage.getItem(sessionKey)); } catch {}
+if (!savedSession || savedSession.snapshot !== snapshotAt) savedSession = {snapshot:snapshotAt};
+const historyStack = Array.isArray(savedSession.undo) ? savedSession.undo.filter(x=>byId.has(x?.sec)) : [];
+function saveSession() {
+  savedSession.undo = historyStack.slice(-50);
+  try { sessionStorage.setItem(sessionKey,JSON.stringify(savedSession)); } catch {}
+}
+function updateUndo() {
+  const last = historyStack.at(-1);
+  for (const id of ['undo','lbUndo']) {
+    $(id).disabled = !last;
+    $(id).title = last ? '撤销对 '+byId.get(last.sec).nickname+' 的标记' : '这次浏览还没有可撤销的标记';
+  }
+}
+updateUndo();
+function viewSignature() {
+  return JSON.stringify([filter,$('search').value,$('markFilter').value,$('sortOrder').value,$('multiOnly').checked,$('changedOnly').checked]);
+}
+function rememberPosition() {
+  if (linkedAccount) return;
+  const limit = Math.max(document.querySelector('.mast').getBoundingClientRect().bottom,
+    document.querySelector('.controls').getBoundingClientRect().bottom,0);
+  const row = [...document.querySelectorAll('.card')].find(el=>el.getBoundingClientRect().bottom>limit);
+  savedSession.position = {signature:viewSignature(),y:scrollY,sec:row?.dataset.sec,top:row?.getBoundingClientRect().top};
+  saveSession();
+}
+function restorePosition() {
+  const pos = savedSession.position;
+  if (!pos || pos.signature!==viewSignature() || linkedAccount) return;
+  const card = pos.sec && $('content').querySelector('[data-sec="'+CSS.escape(pos.sec)+'"]');
+  window.scrollTo(0,card && pos.y>300 ? scrollY+card.getBoundingClientRect().top-pos.top : pos.y);
+}
+window.addEventListener('pagehide',rememberPosition);
 const searchText = new Map(DATA.map(d => [d.sec_uid, [
   d.sec_uid, d.nickname, d.previousName, d.douyin_id, ...(d.posts || []).map(p=>p.caption), ...(d.captions || []), ...(d.extraLines || []).map(line => line.text)
 ].filter(Boolean).join(' ').normalize('NFKC').toLowerCase()]));
@@ -55,11 +90,13 @@ function clearAccountLink() {
   if (!linkedAccount) return;
   linkedAccount = false;
   $('returnToList').hidden = true;
+  $('backToSource').hidden = true;
   const url = new URL(location.href);
   url.hash = '';
   history.replaceState(history.state,'',url);
 }
 function changeView() {
+  replayBatch = false;
   clearAccountLink();
   setCursor(0);
   try { localStorage.setItem(viewKey, JSON.stringify({
@@ -149,26 +186,20 @@ function card(d) {
   const details = [d.works != null ? '作品 ' + esc(d.works) : '', d.followers != null ? '粉丝 ' + esc(fmt(d.followers)) : ''].filter(Boolean);
   if (d.dateStr) details.push((d.fromHistory ? '最近已知发布（上次曾看到） ' : '最近可见发布 ') + esc(d.dateStr) + '（距快照 ' + esc(d.gap) + ' 天）');
   return `<article class="card ${locked ? 'fixed' : mark === 'keep' ? 'keep' : mark === 'unf' ? 'unf' : ''}" data-sec="${esc(d.sec_uid)}">
-    <div class="info"><div class="row1"><a class="nick" href="${url}" target="_blank" rel="noopener">${esc(d.nickname)}</a><a class="plink" href="${url}" target="_blank" rel="noopener">主页 ↗</a></div>
+    <div class="info"><div class="row1"><a class="nick" data-profile="${esc(d.sec_uid)}" href="${url}" target="_blank" rel="noopener">${esc(d.nickname)}</a><a class="plink" data-profile="${esc(d.sec_uid)}" href="${url}" target="_blank" rel="noopener noreferrer">${profileLabel(d.sec_uid)}</a></div>
     <div class="account-id">抖音号 ${esc(d.douyin_id || '—')}</div></div>
     ${covers(d)}
     <div class="body"><div class="meta">${details.join('　·　')}</div>
     ${badges.length ? '<div class="badges">' + badges.map(t => '<span>' + esc(t) + '</span>').join('') + '</div>' : ''}
     ${(d.changeFacts || []).map(f=>'<p class="meta">'+esc(f)+'</p>').join('')}${extras}${workList(d)}
-    ${(d.alsoIn || []).map(g=>'<a class="other-gallery" href="'+esc(g.href)+'#account='+encodeURIComponent(d.sec_uid)+'">'+esc(g.name)+(g.note ? ' · '+esc(g.note) : '')+' ↗</a>').join('')}</div>
+    ${(d.alsoIn || []).map(g=>'<a class="other-gallery" href="'+esc(g.href)+'#account='+encodeURIComponent(d.sec_uid)+'&amp;from='+encodeURIComponent(currentGallery)+(linkedAccount?'&amp;focused=1':'')+'">'+esc(g.name)+(g.note ? ' · '+esc(g.note) : '')+' ↗</a>').join('')}</div>
     <div class="ops">${locked ? `<button class="b-lock" disabled>${esc(locked)} · 不可标记</button>` :
       `<button class="b-unf" data-mark="unf" aria-pressed="${mark === 'unf'}">取关</button>
        <button class="b-keep" data-mark="keep" aria-pressed="${mark === 'keep'}">保留</button>`}</div></article>`;
 }
-function rowPos() {
-  const total = visible.length, end = cursor >= total;
-  $('btnRow').disabled = end || copyingBatch;
-  $('btnRowReset').disabled = cursor === 0;
-  $('rowPos').textContent = !total ? '' : end ? '已浏览至末尾' : `下一批　${cursor + 1}–${Math.min(cursor + 5, total)} / ${total}`;
-}
 function render() {
   const query = $('search').value.trim().normalize('NFKC').toLowerCase();
-  visible = DATA.filter(d => matches(d) && (!query || searchText.get(d.sec_uid).includes(query)));
+  visible = DATA.filter(d => matches(d) && (linkedAccount ? d.sec_uid === $('search').value : !query || searchText.get(d.sec_uid).includes(query)));
   const order = $('sortOrder').value;
   if (order === 'oldest') visible.sort((a,b) => b.gap - a.gap);
   if (order === 'followers') visible.sort((a,b) => (b.followers ?? -1) - (a.followers ?? -1));
@@ -210,6 +241,10 @@ $('content').addEventListener('toggle', e => {
     details.insertAdjacentHTML('beforeend','<ol>'+workItems(byId.get(details.closest('.card').dataset.sec))+'</ol>');
   }
 },true);
+let lastPointerDecision;
+$('content').addEventListener('keydown',e=>{
+  if (e.repeat && e.key==='Enter' && e.target.closest('[data-mark]')) e.preventDefault();
+});
 $('content').addEventListener('click', event => {
   const button = event.target.closest('button');
   if (!button) return;
@@ -217,14 +252,21 @@ $('content').addEventListener('click', event => {
   const sec = row.dataset.sec;
   if (button.classList.contains('cover')) { openLb(sec, Number(button.dataset.i)); return; }
   const mark = button.dataset.mark;
-  if (!mark || fixedLabel(byId.get(sec))) return;
+  if (!mark || event.detail>1 || fixedLabel(byId.get(sec))) return;
   const next = readMarks();
   if (next[sec] === mark) return;
+  if (event.detail>0) {
+    const last=lastPointerDecision;
+    if (last && last.sec!==sec && event.timeStamp-last.time<400 &&
+        Math.hypot(event.clientX-last.x,event.clientY-last.y)<5) return;
+    lastPointerDecision={sec,time:event.timeStamp,x:event.clientX,y:event.clientY};
+  }
   const before = next[sec];
   next[sec] = mark;
   if (!saveMarks(next)) return;
-  historyStack.push({sec, before, mark});
-  $('undo').disabled = false;
+  historyStack.push({sec,before,mark,index:lbEl.open && lb.sec===sec ? lb.idx : 0});
+  if (historyStack.length>50) historyStack.shift();
+  saveSession(); updateUndo();
   if (!matches(byId.get(sec))) {
     const index = visible.findIndex(d => d.sec_uid === sec);
     if (index < cursor) setCursor(Math.max(0, cursor - 1));
@@ -260,26 +302,34 @@ function saveMarks(next) {
   state = next;
   return true;
 }
-$('undo').addEventListener('click', () => {
+function undoDecision(showInViewer) {
   const last = historyStack.at(-1);
   if (!last) return;
   const next = readMarks();
-  if (next[last.sec] !== last.mark) {
+  const canUndo = next[last.sec] === last.mark && !fixedLabel(byId.get(last.sec));
+  if (!canUndo) {
     toast('此标记已在其他窗口更改');
   } else {
     if (last.before) next[last.sec] = last.before;
     else delete next[last.sec];
     if (!saveMarks(next)) return;
-    setCursor(0);
     toast('已撤销：' + byId.get(last.sec).nickname);
   }
   historyStack.pop();
-  $('undo').disabled = !historyStack.length;
+  saveSession(); updateUndo();
   state = next;
   render();
-});
+  if (showInViewer && canUndo && visible.includes(byId.get(last.sec)) && byId.get(last.sec).covers?.length) openLb(last.sec,last.index || 0);
+}
+$('undo').addEventListener('click',e=>{ if(e.detail<=1) undoDecision(false); });
 window.addEventListener('storage', e => {
-  if (e.key === KEY || e.key === null) { state = readMarks(); render(); }
+  if (e.key === KEY || e.key === null) {
+    state = readMarks(); render();
+    if (lbEl.open) {
+      if (visible.includes(byId.get(lb.sec))) renderLb();
+      else { closeLb(); toast('此账号的标记已在其他窗口更改'); }
+    }
+  }
 });
 $('search').addEventListener('input', changeView);
 $('sortOrder').addEventListener('change', changeView);
@@ -287,10 +337,18 @@ $('markFilter').addEventListener('change', changeView);
 $('multiOnly').addEventListener('change', changeView);
 $('changedOnly').addEventListener('change', changeView);
 function followAccountLink() {
-  const id = new URLSearchParams(location.hash.slice(1)).get('account');
+  const params = new URLSearchParams(location.hash.slice(1));
+  const id = params.get('account');
   linkedAccount = Boolean(id && byId.has(id));
   $('returnToList').hidden = !linkedAccount;
-  if (!linkedAccount) { restoreView(); render(); return; }
+  const source=[...document.querySelectorAll('nav a')].find(a=>a.getAttribute('href')===params.get('from') && !a.hasAttribute('aria-current'));
+  const back=$('backToSource');
+  back.hidden=!(source && linkedAccount);
+  if (!back.hidden) {
+    back.href=source.getAttribute('href')+(params.get('focused')==='1' ? '#account='+encodeURIComponent(id) : '');
+    back.textContent='返回'+source.textContent;
+  }
+  if (!linkedAccount) { restoreView(); render(); restorePosition(); return; }
   filter = 'all'; $('markFilter').value = 'all'; $('multiOnly').checked = false; $('changedOnly').checked = false;
   $('search').value = id; setCursor(0); render();
 }
@@ -298,7 +356,7 @@ window.addEventListener('hashchange',followAccountLink);
 $('returnToList').addEventListener('click',()=>{
   clearAccountLink();
   restoreView();
-  render();
+  render(); restorePosition();
 });
 $('clearFilters').addEventListener('click',()=>{
   filter = 'all';
@@ -337,32 +395,3 @@ $('btnDown').addEventListener('click', () => {
   link.href = url; link.download = 'decisions.txt'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-$('btnRow').addEventListener('click', async () => {
-  if (copyingBatch) return;
-  const view = visible;
-  const batch = view.slice(cursor, cursor + 5);
-  let opened = 0;
-  for (const d of batch) {
-    const tab = window.open('about:blank', '_blank');
-    if (!tab) break;
-    tab.opener = null;
-    tab.location.replace(profile(d.sec_uid));
-    opened++;
-  }
-  setCursor(cursor + opened);
-  rowPos();
-  const rest = batch.slice(opened);
-  if (!rest.length) { toast(`已打开 ${opened} 个主页`); return; }
-  copyingBatch = true;
-  rowPos();
-  const pendingCursor = cursor;
-  try {
-    await navigator.clipboard.writeText(rest.map(d => profile(d.sec_uid)).join('\n'));
-    if (view === visible && pendingCursor === cursor && rest.every((d,i)=>visible[cursor+i] === d)) {
-      setCursor(cursor + rest.length);
-    }
-    toast(`已打开 ${opened} 个，另 ${rest.length} 个链接已复制`);
-  } catch { toast('剩余主页链接未能复制，可允许弹窗后重试'); }
-  finally { copyingBatch = false; rowPos(); }
-});
-$('btnRowReset').addEventListener('click', () => { setCursor(0); rowPos(); toast('浏览位置已重置'); });

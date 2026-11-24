@@ -26,6 +26,7 @@ function setScale(target,pointer,animate){
   lb.tx=clamp(itx,lb.maxTx);lb.ty=clamp(ity,lb.maxTy);
   lb.scale=target;applyT(animate!==false);
 }
+const skippedInPreview = new Set();
 function openLb(sec,idx){
   const d=byId.get(sec);if(!d||!(d.covers||[]).length)return;
   if(lb.sec!==sec) lbRunway.replaceChildren();
@@ -45,8 +46,12 @@ function renderLb(){
   const act=imgs[lb.idx];
   if(act){if(!act.complete)act.addEventListener('load',()=>applyT(false),{once:true});else setTimeout(()=>applyT(false),30);}
   document.getElementById('lbWho').textContent=d.nickname;
+  $('lbProfile').href=profile(d.sec_uid);
+  $('lbProfile').dataset.profile=d.sec_uid;
+  $('lbProfile').textContent=profileLabel(d.sec_uid,true);
   const locked=fixedLabel(d);
   $('lbKeep').disabled=$('lbUnf').disabled=Boolean(locked);
+  $('lbSkip').disabled=!nextReviewer(d);
   $('lbReviewStatus').textContent=locked || ({keep:'已标保留',unf:'已标取关'}[markOf(d.sec_uid)] || '未标记');
   const work = works?.[lb.idx];
   document.getElementById('lbAttr').textContent=work ? [workDate(work),work.caption].filter(Boolean).join(' · ') : '历史封面';
@@ -57,11 +62,17 @@ function renderLb(){
   document.getElementById('lbPrev').disabled=lb.idx===0;
   document.getElementById('lbNext').disabled=lb.idx===covers.length-1;
 }
+function nextReviewer(current) {
+  const at = visible.indexOf(current);
+  for (let n=1;n<visible.length;n++) {
+    const d=visible[(at+n)%visible.length];
+    if (d.covers?.length && !fixedLabel(d) && !markOf(d.sec_uid) && !skippedInPreview.has(d.sec_uid)) return d;
+  }
+}
 function markAndAdvance(mark) {
   const current=byId.get(lb.sec);
   if (!current || fixedLabel(current)) return;
-  const i=visible.indexOf(current);
-  const next=[...visible.slice(i+1),...visible.slice(0,i)].find(d=>d.covers?.length && !fixedLabel(d) && !markOf(d.sec_uid));
+  const next=nextReviewer(current);
   const button=$('content').querySelector('[data-sec="'+CSS.escape(lb.sec)+'"] [data-mark="'+mark+'"]');
   if (!button) { closeLb(); return; }
   button.click();
@@ -70,13 +81,31 @@ function markAndAdvance(mark) {
   else {
     closeLb();
     const remaining = visible.filter(d=>!d.covers?.length && !fixedLabel(d) && !markOf(d.sec_uid)).length;
-    toast(remaining ? '有封面的账号已审完，还有 '+remaining+' 位可在「未标记 · 无封面」查看' : '当前结果中的未标账号已审完');
+    const skipped=visible.filter(d=>skippedInPreview.has(d.sec_uid) && !markOf(d.sec_uid)).length;
+    const left=[skipped ? '暂跳 '+skipped+' 位' : '',remaining ? '无封面未标 '+remaining+' 位' : ''].filter(Boolean);
+    toast(left.length ? '本次连续预览结束，'+left.join('，') : '当前结果中的未标账号已审完');
   }
 }
-$('lbKeep').addEventListener('click',()=>markAndAdvance('keep'));
-$('lbUnf').addEventListener('click',()=>markAndAdvance('unf'));
+$('lbSkip').addEventListener('click',e=>{
+  if (e.detail>1) return;
+  const next=nextReviewer(byId.get(lb.sec));
+  if (next) { skippedInPreview.add(lb.sec); openLb(next.sec_uid,0); }
+});
+$('lbKeep').addEventListener('click',e=>{ if(e.detail<=1) markAndAdvance('keep'); });
+$('lbUnf').addEventListener('click',e=>{ if(e.detail<=1) markAndAdvance('unf'); });
+$('lbUndo').addEventListener('click',e=>{ if(e.detail<=1) undoDecision(true); });
+lbEl.addEventListener('keydown',e=>{
+  if(e.repeat && ['Enter',' '].includes(e.key) && e.target.closest('.lb-review button')) e.preventDefault();
+});
 function closeLb(){lbEl.close()}
-lbEl.addEventListener('close',()=>{document.body.style.overflow='';lbRunway.replaceChildren();lb.drag=null});
+lbEl.addEventListener('close',()=>{
+  if (lbEl.open) return;
+  skippedInPreview.clear();
+  document.body.style.overflow=''; lbRunway.replaceChildren(); lb.drag=null;
+  const row=$('content').querySelector('[data-sec="'+CSS.escape(lb.sec)+'"]');
+  const cover=row?.querySelectorAll('.cover')[Math.min(lb.idx,2)] || row?.querySelector('.cover');
+  if (cover) { cover.focus({preventScroll:true}); cover.scrollIntoView({block:'nearest'}); }
+});
 function move(delta){
   const d=byId.get(lb.sec);if(!d)return;
   const n=(d.covers||[]).length;const ni=lb.idx+delta;if(ni<0||ni>=n)return;

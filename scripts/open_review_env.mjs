@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { attachProfileTab } from './profile-tab.mjs';
 import { DATA, launch } from './lib.mjs';
 
 const files = new Map([
@@ -18,6 +19,7 @@ if (!selected) targets.push('https://www.douyin.com/');
 const { context, page } = await launch('main');
 const closed = new Promise(resolve => context.once('close', resolve));
 try {
+  await attachProfileTab(context,[...files.values()].map(name=>path.join(DATA,name)));
   for (const [i, target] of targets.entries()) {
     const tab = i ? await context.newPage() : page;
     await tab.goto(target, { waitUntil: 'domcontentloaded' });

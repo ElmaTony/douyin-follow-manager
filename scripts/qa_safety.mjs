@@ -15,8 +15,8 @@ const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-offline-'));
 const data = path.join(fixture, 'data');
 fs.mkdirSync(data);
 fs.mkdirSync(path.join(fixture,'scripts'));
-for (const name of ['local-state.mjs','account-checks.mjs','core.mjs','unfollow_list.mjs','compare_snapshots.mjs','transfer.mjs','batch_unfollow.mjs','final_verify.mjs','merge_incremental.mjs','read_suspect_state.mjs','prep_suspect_unfollow.mjs','sync_marks.mjs','preflight_incremental.mjs','update_registry.mjs','run.mjs','open_review_env.mjs','refresh_review.mjs',
-  'snapshot_main.mjs','recent-works.mjs','topic-change.mjs','scan_bans_latest.mjs','build_suspects_latest.mjs','gallery.mjs','gallery.css','gallery-client.js',
+for (const name of ['local-state.mjs','account-checks.mjs','core.mjs','unfollow_list.mjs','compare_snapshots.mjs','transfer.mjs','batch_unfollow.mjs','final_verify.mjs','merge_incremental.mjs','read_suspect_state.mjs','prep_suspect_unfollow.mjs','sync_marks.mjs','preflight_incremental.mjs','update_registry.mjs','run.mjs','open_review_env.mjs','profile-tab.mjs','refresh_review.mjs',
+  'snapshot_main.mjs','recent-works.mjs','topic-change.mjs','scan_bans_latest.mjs','build_suspects_latest.mjs','gallery.mjs','gallery.css','gallery-client.js','gallery-profiles.js',
   'gallery-lightbox.js','gen_review_gallery.mjs','gen_stale_gallery.mjs','gen_suspect_gallery.mjs']) {
   fs.copyFileSync(path.join(sources,name),path.join(fixture,'scripts',name));
 }
@@ -35,7 +35,7 @@ export async function launch(which) {
       goto: async url=>fs.appendFileSync('review-urls',JSON.stringify(url)+'\\n'),
       bringToFront: async ()=>closed(),
     };
-    return {page,context:{once:(_event,listener)=>{closed=listener;},close:async()=>{},newPage:async()=>page}};
+    return {page,context:{exposeBinding:async()=>{},once:(_event,listener)=>{closed=listener;},close:async()=>{},newPage:async()=>page}};
   }
   let address = '';
   return {context:{close:async()=>{}},page:{

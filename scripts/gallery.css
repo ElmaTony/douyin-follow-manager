@@ -27,7 +27,7 @@ button:disabled{cursor:default;opacity:.52}
 button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
 a{color:inherit}button,a,input{touch-action:manipulation}
 .wrap{width:min(calc(100% - 72px),1536px);margin:auto}
-.mast{background:var(--nav);color:var(--nav-ink);border-bottom:1px solid var(--line)}
+.mast{position:sticky;top:0;z-index:6;background:var(--nav);color:var(--nav-ink);border-bottom:1px solid var(--line)}
 .mast-inner{display:flex;align-items:center;gap:clamp(24px,5vw,84px);min-height:59px}
 .brand{display:flex;align-items:center;gap:12px;flex:none;font-weight:750;font-size:17px;letter-spacing:.06em}
 .brandmark{position:relative;display:inline-block;width:22px;height:24px;transform:skewY(-12deg)}
@@ -63,7 +63,7 @@ h1{font-family:var(--display);font-size:clamp(27px,3.15vw,49px);line-height:1.2;
 #btnRowReset{padding-inline:10px}
 .refine,.view-options{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .refine{margin-top:12px;justify-content:space-between}
-.view-options select,#exportScope{font:inherit;font-size:12px;color:var(--ink);padding:6px 4px;background:var(--panel);border:1px solid var(--line);border-radius:6px;max-width:100%}
+.view-options select,#batchSize,#exportScope{font:inherit;font-size:12px;color:var(--ink);padding:6px 4px;background:var(--panel);border:1px solid var(--line);border-radius:6px;max-width:100%}
 .view-options select:focus-visible,#exportScope:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .view-options button{font-size:12px;padding:7px 9px}
 .filters{gap:5px}
@@ -86,7 +86,6 @@ h1{font-family:var(--display);font-size:clamp(27px,3.15vw,49px);line-height:1.2;
 .idx{position:absolute;right:5px;bottom:5px;background:#30251fcb;color:#fff;font:11px var(--num);padding:2px 5px;border-radius:3px}
 .fallback,.no-cover{display:flex;align-items:center;justify-content:center;gap:9px;color:var(--muted);font-weight:400;font-size:12px}
 .fallback{height:100%;flex-direction:column;background:var(--soft)}
-.covers:not(:has(img:not([hidden]))) .cover{aspect-ratio:auto;height:88px}
 .cover:focus-visible{outline-offset:-3px}
 .no-cover{margin:0 10px;border:1px dashed var(--line);border-radius:5px;background:var(--soft);min-height:88px}
 .frame-icon{width:19px;height:14px;border:1px solid currentColor;border-radius:2px;position:relative;display:inline-block}
@@ -132,7 +131,7 @@ h1{font-family:var(--display);font-size:clamp(27px,3.15vw,49px);line-height:1.2;
 }
 @media(prefers-reduced-motion:reduce){*,*::after,*::before{transition:none!important}}
 
-@media(min-width:801px){.controls{position:sticky;top:0;z-index:5;background:var(--paper)}}
+@media(min-width:801px){.controls{position:sticky;top:60px;z-index:5;background:var(--paper)}}
 
 .multi-only{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
 .multi-only input{accent-color:var(--accent)}
@@ -145,3 +144,8 @@ h1{font-family:var(--display);font-size:clamp(27px,3.15vw,49px);line-height:1.2;
 .lb-review{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;padding:6px 12px}
 #lb .lb-review button{font-size:12px;padding:7px 10px}
 #lbReviewStatus{font-size:12px;color:#e4d7c7}
+
+.lb-author{display:flex;align-items:center;gap:14px;min-width:0}.lb-author strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lbProfile{color:#f4b8a3;flex:none;font-size:13px}
+@media(min-width:801px){.card,.cover{scroll-margin-top:var(--gallery-sticky-height,200px)}}
+@media(max-width:800px){.card,.cover{scroll-margin-top:60px}}
