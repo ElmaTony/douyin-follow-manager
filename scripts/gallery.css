@@ -160,3 +160,4 @@ h1{font-family:var(--display);font-size:clamp(27px,3.15vw,49px);line-height:1.2;
 #queue strong,#queue small{display:block;overflow-wrap:anywhere}#queue small,#queue em{color:var(--muted);font-size:12px;font-style:normal}
 #queue footer{justify-content:flex-end;padding-top:12px;border-top:1px solid var(--line)}
 #queue .primary{color:var(--on-accent);background:var(--accent)}#queue [hidden]{display:none}
+#queueSelect{align-self:flex-start;margin:0 0 8px}#queue footer{flex-wrap:wrap}

@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, test } from 'node:test';
+import { templateTag } from './gallery.mjs';
 import { confirmedStatus } from './account-checks.mjs';
 import { galleryPayload, snapshotTime, staleAtSnapshot } from './core.mjs';
 
@@ -216,9 +217,13 @@ test('接口提前报告末页时，迁移前置核对仍须比对来源账号�
 });
 
 test('指定画廊只打开其本地地址，关闭后顺利结束；缺失画廊会报错',()=>{
-  for (const name of ['review','suspect','stale']) write(name+'_gallery.html','<button id="openQueue"></button>');
+  reset();
+  write('snapshot_latest.json',{exported_at:'2025-05-01T12:00:00Z',accounts:{}});
+  for (const name of ['review','suspect']) write(name+'_gallery.html',templateTag);
+  write('stale_gallery.html','<button id="openQueue"></button>');
   const opened=run('run',{review:true},['open','stale']);
   assert.equal(opened.status,0,opened.stderr);
+  assert.ok(read('stale_gallery.html').includes(templateTag),'已带取关入口的旧画廊也需要升级');
   const urls=fs.readFileSync(path.join(fixture,'review-urls'),'utf8').trim().split('\n').map(line=>JSON.parse(line));
   assert.equal(urls.length,1); assert.match(urls[0],/^file:.*stale_gallery\.html$/);
   fs.rmSync(path.join(data,'stale_gallery.html'));

@@ -3,7 +3,7 @@
   <h1>Guanxu · Douyin Follow Manager</h1>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
   <p><strong>Review, organize and transfer your own Douyin follows on Windows.</strong></p>
-  <p><a href="#download">Download v0.5.0</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
+  <p><a href="#download">Download v0.5.1</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
   <img src="assets/dashboard.png" width="840" alt="Dashboard with a fictional follow snapshot and three review galleries">
   <p><sub>All accounts, counts and migration results shown here are fictional. The application interface is in Chinese.</sub></p>
 </div>
@@ -12,7 +12,7 @@
 
 | Platform | Package | Requirements |
 | --- | --- | --- |
-| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.0/douyin-follow-manager-0.5.0-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.0/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
+| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.1/douyin-follow-manager-0.5.1-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.1/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
 
 Extract the entire ZIP to a writable folder. It includes the compiled application, its scripts and the Playwright dependency. [All releases](https://github.com/ElmaTony/douyin-follow-manager/releases).
 
@@ -33,7 +33,7 @@ Extract the entire ZIP to a writable folder. It includes the compiled applicatio
 3. Open `关序.exe` and select **在线更新审阅数据** to collect your first snapshot. If collection is interrupted, run the update again within six hours. It rechecks the following list and retrieves missing works or accounts whose work count changed. Comparing caption topics requires two snapshots.
 4. Combine category and decision filters, search former names and captions, sort by inactivity or follower count, and undo the last mark. After collecting two snapshots, **对比上次快照** writes a per-account change report to `data/snapshot_changes.csv`.
 5. Mark authors with **待取关** on cards or in the cover viewer. Open **处理待取关** to review the deduplicated selection across all three galleries. Uncheck anyone you want to defer. Check the names and account IDs, then select **确认取关这 N 位**. You can continue reviewing and switch galleries while the review browser stays open.
-6. Each result is shown in the gallery. Authors verified as unfollowed are recorded locally and removed from pending work and exports. Retry unresolved authors after reviewing them. On future migrations the register blocks a new destination follow for a previously unfollowed account. File imports remain available under **账号操作 → 从文件取关**, and you can still export decisions by scope.
+6. Each result is shown in the gallery. Authors verified as unfollowed are recorded locally and removed from pending work and exports. Deferred selections persist across galleries for the same snapshot and decision. Use **全不选** to choose a small subset or **只核对上批未完成项** to retry only unresolved authors. Reopening a desktop-launched gallery restores the last batch result. On future migrations the register blocks a new destination follow for a previously unfollowed account. File imports remain available under **账号操作 → 从文件取关**, and you can still export decisions by scope.
 
 ## Reviewing large lists
 

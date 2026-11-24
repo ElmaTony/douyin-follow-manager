@@ -1,5 +1,21 @@
 # 更新记录 / Changelog
 
+## [v0.5.1](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.1) · 2026-11-24
+
+### 名单核对与中断恢复
+
+- 关闭名单、刷新、切换画廊或遇到提交错误时，已取消的勾选会保留。核对期间其他画廊移回未审或改为保留的人会从名单移除，新标记需再次勾选。名单支持全选和全不选。
+- 重试只列出上批未完成且审阅决定未变的人。另有「全部待取关」入口，可主动查看其他候选。
+- 上一批的逐人结果保存在本机。重开后可区分已登记、尚未开始和中断待复核的账号。恢复后需要再次确认才会执行。
+- 执行前再次检查当前标记。批量处理复用未变化的快照，单人复核只读取所需的标记记录。桌面打开旧画廊时按模板内容检查更新，已有标记继续有效。
+
+### English
+
+- Unchecked authors stay deferred across dialog closes, reloads, gallery switches and submission errors. Authors marked to keep or moved back to undecided disappear from an open confirmation list. Newly changed decisions require selection. Select or clear the full list in one click.
+- Retry only unresolved authors whose decision is still current. The full pending queue remains available separately.
+- The last batch is saved locally. Reopening distinguishes recorded results, work that never started and actions that need verification. A recovered batch requires confirmation before it can run again.
+- The app checks the current decision immediately before acting. Batch verification reuses an unchanged snapshot and reads the requested decision records. The desktop launcher checks the generated gallery template for updates and preserves existing marks.
+
 ## [v0.5.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.0) · 2026-11-24
 
 ### 画廊内取关

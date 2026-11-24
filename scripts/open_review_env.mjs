@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { attachGalleryUnfollow } from './gallery-unfollow.mjs';
+import { templateTag } from './gallery.mjs';
 import { attachProfileTab } from './profile-tab.mjs';
 import { DATA, launch } from './lib.mjs';
 
@@ -20,7 +21,10 @@ if (!selected) targets.push('https://www.douyin.com/');
 // Upgrade generated pages in place so existing bookmarks and review decisions still work.
 for (const [kind,name] of files) {
   const file=path.join(DATA,name);
-  if (fs.existsSync(file) && !fs.readFileSync(file,'utf8').includes('id="openQueue"')) {
+  if (!fs.existsSync(file)) continue;
+  const prefix=Buffer.alloc(512), fd=fs.openSync(file,'r');
+  try { fs.readSync(fd,prefix,0,prefix.length,0); } finally { fs.closeSync(fd); }
+  if (!prefix.toString('utf8').includes(templateTag)) {
     await import('./gen_'+kind+'_gallery.mjs');
   }
 }

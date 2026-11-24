@@ -22,17 +22,17 @@ function conflictDetail(sec) {
 function recordFor(sec) {
   return JSON.parse(localStorage.getItem(decisionPrefix+sec));
 }
-function readMarks() {
+function readMarks(ids=union.map(d=>d.sec_uid)) {
   const marks = Object.create(null);
   try {
     const legacy = readLegacy();
-    for (const d of union) {
-      const record = recordFor(d.sec_uid);
-      const mark = record?.mark ?? legacy[d.sec_uid];
-      const receipt = receipts[d.sec_uid];
-      if (mark==='unf' && receipt && (completed(d.sec_uid) || (receipt.rev && receipt.rev===record?.rev) ||
+    for (const sec of ids) {
+      const record = recordFor(sec);
+      const mark = record?.mark ?? legacy[sec];
+      const receipt = receipts[sec];
+      if (mark==='unf' && receipt && (completed(sec) || (receipt.rev && receipt.rev===record?.rev) ||
           !record?.at || Date.parse(record.at)<=Date.parse(receipt.at))) continue;
-      if (mark) marks[d.sec_uid] = mark;
+      if (mark) marks[sec] = mark;
     }
   } catch { /* The next attempted mark reports a storage failure. */ }
   return marks;

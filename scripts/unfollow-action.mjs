@@ -84,15 +84,19 @@ export async function processUnfollow(page,item,{execute=false,stillPending=asyn
     return failure('线上身份与审阅名单不一致');
   if (execute && !await stillPending()) return failure('审阅决定已变化');
   if (status.follow_status===0) {
-    if (execute) register(item,'absent');
+    if (execute) {
+      await checkOwner(page);
+      if (protectedAccounts().has(item.sec_uid) || !await stillPending()) return failure('登记前标记已变化');
+      register(item,'absent');
+    }
     return {code:'absent',detail:'核对时已未关注'};
   }
   if (!execute) return {code:'pending',detail:'待取关(dry-run)'};
   await sitePause(page);
   const control = page.locator('button[data-e2e="user-info-follow-btn"]:visible').filter({hasText:/^\s*(已关注|互相关注|相互关注|朋友)\s*$/});
   if (await control.count()===0) return failure('未找到已关注按钮');
-  if (protectedAccounts().has(item.sec_uid) || !await stillPending()) return failure('审阅决定或保护状态已变化');
   await checkOwner(page);
+  if (protectedAccounts().has(item.sec_uid) || !await stillPending()) return failure('审阅决定或保护状态已变化');
   await control.first().click({timeout:4000});
   let confirmed = false;
   for (let check=0;check<5;check++) {
@@ -108,8 +112,8 @@ export async function processUnfollow(page,item,{execute=false,stillPending=asyn
       const scoped = page.locator('[role="dialog"]:visible,dialog[open]').filter({hasText:'取消关注'}).getByRole('button',{name:/^(确定|确认)$/});
       const button = explicit.or(scoped);
       if (await button.count()===1) {
-        if (protectedAccounts().has(item.sec_uid) || !await stillPending()) return failure('确认前标记已变化');
         await checkOwner(page);
+        if (protectedAccounts().has(item.sec_uid) || !await stillPending()) return failure('确认前标记已变化');
         await button.click({timeout:3000}); confirmed=true;
       }
     }

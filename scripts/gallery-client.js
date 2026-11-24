@@ -292,7 +292,7 @@ async function applyDecision(sec,mark) {
   return withDecisionLock(sec,()=>{
     const previous = recordFor(sec);
     const current = previous?.mark ?? readLegacy()[sec] ?? '';
-    const effective = effectiveMark(sec,readMarks()[sec]);
+    const effective = effectiveMark(sec,readMarks([sec])[sec]);
     if (effective !== seen) {
       state = readMarks(); render(); toast('此账号刚在其他页更改，请核对后再标记'); return false;
     }

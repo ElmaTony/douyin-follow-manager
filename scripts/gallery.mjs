@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { readJson, snapshotTime, staleAtSnapshot, tierOf, visibleTimes, localDate, lowWorksUncertainty } from './core.mjs';
 
@@ -6,6 +7,11 @@ const css = asset('gallery.css');
 const client = asset('gallery-client.js');
 const profiles = asset('gallery-profiles.js');
 const lightbox = asset('gallery-lightbox.js');
+const templateHash = createHash('sha256');
+for (const source of [asset('gallery.mjs'),css,client,profiles,lightbox,asset('gallery-decisions.js'),asset('gallery-queue.js')]) {
+  templateHash.update(source.replaceAll('\r\n','\n'));
+}
+export const templateTag = '<meta name="guanxu-template" content="'+templateHash.digest('hex')+'">';
 const galleries = [
   { key: 'review_state_v2', href: 'review_gallery.html', name: '低作品审阅' },
   { key: 'stale_state_v1', href: 'stale_gallery.html', name: '停更审阅' },
@@ -107,7 +113,7 @@ export function buildGallery({ title, date, snapshotAt = date, data, key, rowKey
   const receipts = Object.fromEntries(Object.entries(readJson('data/unfollow_registry.json')?.entries || {}).filter(([,e])=>e.verified_at).map(([sec,e])=>[sec,{at:e.verified_at,rev:e.review_revision}]));
   const payload = JSON.stringify({ data, union, receipts, sharedDecisions: true, key, rowKey, groups, presetKeep, protectedIds, filters, snapshotAt, timeZone }).replaceAll('<', '\\u003c');
   return `<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh-CN"><head><meta charset="utf-8">${templateTag}<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer"><title>${escapeHtml(title)} · 关注审阅</title><style>${css}</style></head>
 <body>
 <header class="mast"><div class="wrap mast-inner">
@@ -141,7 +147,7 @@ export function buildGallery({ title, date, snapshotAt = date, data, key, rowKey
 </main>
 <dialog id="queue" aria-labelledby="queueTitle">
   <header><h2 id="queueTitle">核对待取关名单</h2><button id="queueClose" autofocus aria-label="关闭取关名单">关闭</button></header>
-  <p id="queueHint"></p><ol id="queueRows"></ol><p id="queueMessage" role="status"></p>
+  <p id="queueHint"></p><button id="queueSelect" type="button" hidden></button><ol id="queueRows"></ol><p id="queueMessage" role="status"></p>
   <footer><button id="queuePrevious" hidden>上批结果</button><button id="queueReturn">继续审阅</button><button id="queueConfirm" class="primary"></button></footer>
 </dialog>
 <dialog id="lb" aria-labelledby="lbWho">
