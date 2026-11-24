@@ -6,13 +6,21 @@ const snap = readJson('data/snapshot_latest.json');
 if (!snap?.accounts) throw new Error('缺少关注快照');
 const previous = readJson('data/snapshot_previous.json')?.accounts || {};
 const ledger = readJson('data/ledger.json') || [];
-const originalNames = new Map(ledger.map(row => [row.sec_uid, row.nickname]));
+const originalNames = new Map();
+for (const row of ledger) {
+  if (!row.sec_uid || !row.nickname) continue;
+  if (!originalNames.has(row.sec_uid)) originalNames.set(row.sec_uid,[]);
+  originalNames.get(row.sec_uid).push(row.nickname);
+}
 const out = [];
 for (const [sec, a] of Object.entries(snap.accounts)) {
   const prior = previous[sec];
-  const firstNick = prior?.nickname || originalNames.get(sec) || a.nickname;
   const nowNick = a.nickname;
-  const renamed = Boolean(firstNick && nowNick && firstNick.normalize('NFKC').trim() !== nowNick.normalize('NFKC').trim());
+  const normalize = text => String(text || '').normalize('NFKC').trim();
+  const differs = name => normalize(name) && normalize(nowNick) && normalize(name) !== normalize(nowNick);
+  const recentRename = Boolean(differs(prior?.nickname));
+  const firstNick = recentRename ? prior.nickname : originalNames.get(sec)?.find(differs) || nowNick;
+  const renamed = Boolean(differs(firstNick));
   const oldCaptions = prior?.captions || [], newCaptions = a.captions || [];
   const topic = topicChange(oldCaptions,newCaptions);
   const contentShift = Boolean(topic);
@@ -21,7 +29,7 @@ for (const [sec, a] of Object.entries(snap.accounts)) {
   out.push({
     sec_uid: sec,
     nickname_now: nowNick,
-    nickname_first: firstNick, recentRename: Boolean(renamed && prior?.nickname === firstNick),
+    nickname_first: firstNick, recentRename,
     evidence: topic ? topic.label+'，前后各有 '+topic.before.length+'、'+topic.after.length+' 条不同文案' : '',
     renamed,
     douyin_id: a.douyin_id,

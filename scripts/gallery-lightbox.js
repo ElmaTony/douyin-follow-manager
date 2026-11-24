@@ -52,7 +52,7 @@ function renderLb(){
   const locked=fixedLabel(d);
   $('lbKeep').disabled=$('lbUnf').disabled=Boolean(locked);
   $('lbSkip').disabled=!nextReviewer(d);
-  $('lbReviewStatus').textContent=locked || ({keep:'已标保留',unf:'已标取关'}[markOf(d.sec_uid)] || '未标记');
+  $('lbReviewStatus').textContent=locked || ({keep:'已标保留',unf:'已标取关',conflict:'旧标记冲突 · 请重新选择'}[markOf(d.sec_uid)] || '未标记');
   const work = works?.[lb.idx];
   document.getElementById('lbAttr').textContent=work ? [workDate(work),work.caption].filter(Boolean).join(' · ') : '历史封面';
   const link = document.getElementById('lbWork'), url = workUrl(work);
@@ -69,14 +69,16 @@ function nextReviewer(current) {
     if (d.covers?.length && !fixedLabel(d) && !markOf(d.sec_uid) && !skippedInPreview.has(d.sec_uid)) return d;
   }
 }
-function markAndAdvance(mark) {
+let markingInViewer = false;
+async function markAndAdvance(mark) {
   const current=byId.get(lb.sec);
-  if (!current || fixedLabel(current)) return;
+  if (markingInViewer || !current || fixedLabel(current)) return;
   const next=nextReviewer(current);
-  const button=$('content').querySelector('[data-sec="'+CSS.escape(lb.sec)+'"] [data-mark="'+mark+'"]');
-  if (!button) { closeLb(); return; }
-  button.click();
-  if (markOf(lb.sec) !== mark) { $('lbReviewStatus').textContent='未保存，请重试'; return; }
+  markingInViewer=true;
+  let saved;
+  try { saved=await applyDecision(current.sec_uid,mark); } finally { markingInViewer=false; }
+  if (!lbEl.open || lb.sec!==current.sec_uid) return;
+  if (!saved) { $('lbReviewStatus').textContent='本次未保存，请核对后重试'; return; }
   if (next) openLb(next.sec_uid,0);
   else {
     closeLb();

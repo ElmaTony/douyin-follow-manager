@@ -17,7 +17,7 @@ const m = await launch('main');
 let saved;
 try {
   await m.page.goto(galleryUrl, {waitUntil: 'domcontentloaded'});
-  saved = await m.page.evaluate(key => JSON.parse(localStorage.getItem(key) || '{}'), payload.key);
+  saved = await m.page.evaluate(key => typeof readMarks==='function' ? readMarks() : JSON.parse(localStorage.getItem(key) || '{}'), payload.key);
 } finally {
   await m.context.close();
 }

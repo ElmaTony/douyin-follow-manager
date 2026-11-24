@@ -20,7 +20,7 @@ function decisionItems(text) {
   return text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim()).map((line, i) => {
     const fields = line.split('\t');
     const [sec_uid, nickname, douyin_id, decision] = fields;
-    if (fields.length !== 4 || !['保留','取关','未审','未标'].includes(decision)) {
+    if (fields.length !== 4 || !['保留','取关','未审','未标','待复核'].includes(decision)) {
       throw new Error('第 ' + (i+1) + ' 行不是画廊导出的四列决定名单');
     }
     return {sec_uid, nickname, douyin_id, keep:decision !== '取关'};

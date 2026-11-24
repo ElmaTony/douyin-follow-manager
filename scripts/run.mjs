@@ -53,7 +53,7 @@ switch (cmd) {
   case 'gallery': {
     const which = rest[0] || 'all';
     const map = { review: 'gen_review_gallery.mjs', suspect: 'gen_suspect_gallery.mjs', stale: 'gen_stale_gallery.mjs' };
-    if (which === 'all') { for (const s of Object.values(map)) run(s); }
+    if (which === 'all') { run('build_suspects_latest.mjs'); for (const s of Object.values(map)) run(s); }
     else if (map[which]) run(map[which]);
     else { console.error('用法: node run.mjs gallery review|suspect|stale|all'); process.exit(1); }
     break;

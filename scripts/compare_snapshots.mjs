@@ -21,7 +21,7 @@ for (const sec of new Set([...Object.keys(latest.accounts),...Object.keys(old.ac
   const a=old.accounts[sec], b=latest.accounts[sec], changes=[];
   if (!a || !b) changes.push(b ? '新增' : '移出');
   else {
-    if (a.nickname !== b.nickname) changes.push('改名');
+    if (a.nickname && b.nickname && a.nickname.normalize('NFKC').trim() !== b.nickname.normalize('NFKC').trim()) changes.push('改名');
     if (String(a.douyin_id ?? '') !== String(b.douyin_id ?? '')) changes.push('抖音号变化');
     if (a.works != null && b.works != null && a.works !== b.works) changes.push('作品数变化');
     const older = recentPost(a), now = recentPost(b);

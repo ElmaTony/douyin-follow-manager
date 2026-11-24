@@ -82,6 +82,8 @@ export function lowWorksUncertainty(account,verified) {
 export function staleAtSnapshot(account, asOf, verified, previous) {
   const visible = tierOf(visibleTimes(account),asOf);
   const historic = tierOf(visibleTimes(previous),asOf);
+  // A recently observed post still rules out a 31-day break if it becomes hidden.
+  if (!visible.last && historic.last && historic.gap<=30) return null;
   const fromHistory = Boolean(visible.last && historic.last > visible.last);
   const result = fromHistory ? historic : visible;
   if ((result.gap == null && (verified?.works_fresh ?? account.works) > 0) ||

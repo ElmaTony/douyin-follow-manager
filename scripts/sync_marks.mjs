@@ -14,6 +14,11 @@ const sourceFile = path.join(DATA, 'suspect_gallery.html');
 const destFile = path.join(DATA, 'review_gallery.html');
 const source = galleryPayload(fs.readFileSync(sourceFile, 'utf8'));
 const dest = galleryPayload(fs.readFileSync(destFile, 'utf8'));
+if (source.sharedDecisions || dest.sharedDecisions) {
+  if (!(source.sharedDecisions && dest.sharedDecisions)) throw new Error('请先从快照重建三个画廊，使画廊版本一致');
+  console.log('三个画廊已共享决定。旧标记不一致时，请在画廊里选择「旧标记有冲突」核对。');
+  process.exit(0);
+}
 const eligible = new Set(reviewableRows(dest).map(row => row.sec_uid));
 const shared = reviewableRows(source).map(row => row.sec_uid).filter(sec => eligible.has(sec));
 const m = await launch('main');

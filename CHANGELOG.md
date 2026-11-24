@@ -1,5 +1,32 @@
 # 更新记录 / Changelog
 
+## [v0.4.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.4.0) · 2026-11-24
+
+### 多画廊审阅
+
+- 同一博主在三个画廊共享保留和取关标记。旧版各画廊的决定一致时自动沿用。若有冲突，会显示「旧标记有冲突」，可筛出、核对各画廊原来的选择后重新决定。当前结果和整页名单把尚未解决的冲突标为「待复核」，账号操作预览会跳过。
+- 新增「三个画廊已标记」导出范围。从任一画廊复制或下载都只需一次，按账号去重，只包含本次快照中可审阅且已决定的博主。保留名单、资料待核、冲突和未审账号均不会进入合并名单。
+- 重新打开工具后，也可以在卡片上点「移回未审」，把以前的决定移出已标记名单并放回待审队列。这个操作同样可以撤销。
+- 复制和下载前可核对各类决定的人数。文件名包含所选范围、快照日期与导出时间，方便区分连续下载的名单。
+- 同一标签页内，切换画廊后仍能撤销共同博主的决定。在单人页面，撤销只作用于眼前这位博主。其他标签页后来改过的决定受到保护，即使最终显示的选项恰好相同。每个标签页对同一快照最多保存最近 50 笔手动操作。
+- 从一个画廊经过另两个画廊查看同一位博主，可以逐层返回。来源和目标快照不同会得到提示。旧链接中的博主已不在目标画廊时，页面会说明原因并保留返回入口。
+
+### 分类与依据
+
+- 跨画廊入口显示另一个画廊的入选理由，包括主页或列表作品数、距最近已知发布的天数、历史昵称或本轮改名。资料不足、异常保留及名单保护在各画廊统一生效。
+- 「从快照重建」会重新分析改名线索。只发生全半角或首尾空格变化的昵称不计为改名。前后两次快照昵称相同、但台账有不同旧名时，标为「历史名称不同」。缺少主页核验的线索会保留供查看，等待核验后再决定。
+- 本轮作品日期不可见时，若旧快照已经记录近 30 天内的发布，停更画廊会排除该账号。
+
+### English
+
+- Keep and unfollow decisions follow the author across all three galleries. Matching legacy marks carry over. Conflicting legacy marks show the original choice in each gallery and can be filtered and resolved explicitly. Current-result and whole-gallery exports label unresolved rows as pending review, and the action preview skips them.
+- Choose **三个画廊已标记** to copy or download one deduplicated list from any gallery. It includes current, eligible authors with a keep or unfollow decision. Protected, uncertain, conflicting and unreviewed entries are excluded.
+- Reopen a previously decided author with **移回未审**. This removes the author from the combined list, returns them to the review queue and supports undo.
+- The export preview counts each decision type. Download filenames include the scope, snapshot date and export time.
+- Undo follows shared authors in the current tab. A single-author view limits undo to that person. Revision checks preserve newer edits made in other tabs, including edits that ended on the same choice. The tab keeps its last 50 manual edits for the snapshot.
+- Return through a chain of galleries without losing the author. Cross-snapshot and missing-author links explain what changed.
+- Cross-gallery links show the evidence behind each match. Offline rebuilds recheck name history, distinguish historical names from changes since the previous snapshot and ignore width or surrounding-space differences. Authors with incomplete verification have the same review restrictions in every gallery. A recently documented post excludes an author from inactivity review even when its date disappears in the current sample.
+
 ## [v0.3.0](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.3.0) · 2026-11-24
 
 ### 画廊与主页

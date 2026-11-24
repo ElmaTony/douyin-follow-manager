@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, test } from 'node:test';
 import { confirmedStatus } from './account-checks.mjs';
-import { snapshotTime, staleAtSnapshot } from './core.mjs';
+import { galleryPayload, snapshotTime, staleAtSnapshot } from './core.mjs';
 
 const sources = fileURLToPath(new URL('.', import.meta.url));
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-offline-'));
@@ -16,7 +16,7 @@ const data = path.join(fixture, 'data');
 fs.mkdirSync(data);
 fs.mkdirSync(path.join(fixture,'scripts'));
 for (const name of ['local-state.mjs','account-checks.mjs','core.mjs','unfollow_list.mjs','compare_snapshots.mjs','transfer.mjs','batch_unfollow.mjs','final_verify.mjs','merge_incremental.mjs','read_suspect_state.mjs','prep_suspect_unfollow.mjs','sync_marks.mjs','preflight_incremental.mjs','update_registry.mjs','run.mjs','open_review_env.mjs','profile-tab.mjs','refresh_review.mjs',
-  'snapshot_main.mjs','recent-works.mjs','topic-change.mjs','scan_bans_latest.mjs','build_suspects_latest.mjs','gallery.mjs','gallery.css','gallery-client.js','gallery-profiles.js',
+  'snapshot_main.mjs','recent-works.mjs','topic-change.mjs','scan_bans_latest.mjs','build_suspects_latest.mjs','gallery.mjs','gallery.css','gallery-client.js','gallery-profiles.js', 'gallery-decisions.js',
   'gallery-lightbox.js','gen_review_gallery.mjs','gen_stale_gallery.mjs','gen_suspect_gallery.mjs']) {
   fs.copyFileSync(path.join(sources,name),path.join(fixture,'scripts',name));
 }
@@ -183,7 +183,7 @@ test('GUI 接收四列决定名单，未标、保留、重复和受保护账号�
   reset(); write('user_keep_list.json',{keeps:[{sec_uid:'protected'}]});
   write('名单 & (复测).txt',[
     'person-a\t选中A\t123\t取关', 'person-a\t选中A\t123\t取关',
-    'person-b\t不应出现B\t234\t未审','person-c\t不应出现C\t345\t保留',
+    'person-b\t不应出现B\t234\t未审','person-c\t不应出现C\t345\t保留','person-x\t不应出现X\t999\t待复核',
     'protected\t不应出现D\t456\t取关','person-e\t不应出现E\t567\t取关','person-e\t不应出现E\t567\t保留',
   ].join('\n'));
   const preview=run('run',{},['preview','data/名单 & (复测).txt']);
@@ -304,6 +304,7 @@ test('停更以满天计；置顶乱序取最新，私密或有作品但无日�
   const oldWorks=staleAtSnapshot({times:[localMidnight.getTime()/1000]},localMidnight.getTime()/1000+95*86400);
   assert.equal(oldWorks.dateStr,'2024-01-02');
   const prior={times:[now-50*86400]};
+  assert.equal(staleAtSnapshot({times:[],works:4},now,{}, {times:[now-20*86400]}),null);
   const corrected=staleAtSnapshot({times:[now-200*86400]},now,{},prior);
   assert.equal(corrected.group,'s3090'); assert.equal(corrected.fromHistory,true);
   assert.equal(staleAtSnapshot({times:[],works:4},now,{},prior).group,'unknown');
@@ -398,4 +399,37 @@ test('旧版快照首次补图失败后，可单独重试作品且沿用成功�
   assert.equal(account.posts[0].id,'201');
   assert.ok(!account.postDetailsUnavailable);
   assert.equal(fs.readFileSync(path.join(fixture,'reads'),'utf8'),reads);
+});
+
+test('跨画廊独立判定低作品、停更和改名，对同一作者统一待核与导出资格',()=>{
+  reset();
+  const current='2026-06-01T09:00:00Z', previous='2026-04-01T09:00:00Z';
+  const stamp=Date.parse(current)/1000;
+  const make=(sec,nickname,works,days)=>({sec_uid:sec,nickname,douyin_id:'demo_'+sec,works,
+    times:days?[stamp-days*86400]:[],captions:[],covers:[],followers:1});
+  const accounts={
+    triple:make('triple','同名示例',12,62), borderline:make('borderline','同名示例',19,31),
+    hidden:make('hidden','新名称',3,0), format:make('format','AB',80,10),
+    unverified:make('unverified','本周名称',30,90)
+  };
+  const old=Object.fromEntries(Object.entries(accounts).map(([sec,a])=>[sec,{...a}]));
+  old.triple.nickname='旧名甲'; old.hidden.nickname='旧名乙'; old.format.nickname='ＡＢ ';
+  old.unverified.nickname='之前名称';
+  write('snapshot_previous.json',{exported_at:previous,accounts:old});
+  write('snapshot_latest.json',{exported_at:current,accounts});
+  write('ledger.json',[{sec_uid:'borderline',nickname:'历史名称'},{sec_uid:'borderline',nickname:'同名示例'}]);
+  write('ban_latest.json',Object.values(accounts).filter(a=>a.sec_uid!=='unverified').map(a=>({
+    sec_uid:a.sec_uid,status:'normal',works_fresh:a.sec_uid==='borderline'?20:a.works,secret:a.sec_uid==='hidden'?1:0
+  })));
+  const built=run('run',{},['gallery','all']); assert.equal(built.status,0,built.stderr);
+  const payloads=['review','stale','suspect'].map(name=>galleryPayload(read(name+'_gallery.html')));
+  const rows=sec=>payloads.map(cfg=>cfg.data.find(row=>row.sec_uid===sec));
+  assert.ok(rows('triple').every(row=>row && row.alsoIn.length===2 && !row.badgeFix));
+  const [low,stale,rename]=rows('borderline');
+  assert.ok(!low && stale.group==='s3090' && rename.renamed && !rename.recentRename);
+  assert.ok(stale.alsoIn[0].note.includes('历史名称不同'));
+  assert.ok(rows('hidden').every(row=>row.badgeFix));
+  assert.ok(rows('unverified').filter(Boolean).every(row=>row.badgeFix==='主页状态待核'));
+  assert.ok(!rows('format')[2]);
+  for(const cfg of payloads) assert.deepEqual(cfg.union.map(a=>a.sec_uid).sort(),['borderline','triple']);
 });
