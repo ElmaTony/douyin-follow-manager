@@ -1,5 +1,6 @@
 /** 根据最终复核结果输出台账与逐条对照表。 */
 import { loadLedger, toCsv } from './lib.mjs';
+import { isFollowingStatus, reportCsvText } from './core.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,10 +19,10 @@ const vmap = new Map(vj.rows.map((r) => [r.idx, r]));
 
 // 逐条核对表
 const cols = ['idx', 'nickname', 'douyin_id', '台账大号', '台账小号', '实际大号', '实际小号', '结论'];
-const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-const out = [cols.join(',')];
+const csvRows = [];
 const reasonMap = {
   skip_restricted: '博主被禁言/关注被拒/注销',
+  skip_protected: '命中取关登记或保留名单',
   skip_unknown: '重试失败(无限制提示)',
   follow_fail: '关注复查未变(临时失败)',
   id_check_fail: '身份核对失败',
@@ -34,16 +35,24 @@ for (const r of rows) {
   const mStat = v ? v.main_status : '?';
   const aStat = v ? v.alt_status : '?';
   let concl;
-  if (mStat === 1 && aStat === 0) { concl = '✓ 已转移(大号关注/小号取关)'; transferred++; }
-  else if (mStat === 0 && aStat === 1) {
+  if (isFollowingStatus(mStat) && aStat === 0) {
+    concl = '✓ 已转移(大号关注/小号取关)';
+    transferred++;
+  } else if (mStat === 0 && isFollowingStatus(aStat)) {
     const why = reasonMap[r.main_follow] || r.main_follow || '未处理';
     concl = `保留小号(大号未关注: ${why})`;
-    kept++; keptBreakdown[r.main_follow] = (keptBreakdown[r.main_follow] || 0) + 1;
-  } else if (mStat === 1 && aStat === 1) { concl = '⚠ 异常: 大号已关注但小号未取关'; mismatch++; }
-  else { concl = `⚠ 异常: 双方均未关注 (台账大号=${r.main_follow})`; mismatch++; }
-  out.push([r.idx, r.nickname, r.douyin_id, r.main_follow || '', r.alt_unfollow || '', mStat, aStat, concl].map(esc).join(','));
+    kept++;
+    keptBreakdown[r.main_follow] = (keptBreakdown[r.main_follow] || 0) + 1;
+  } else if (isFollowingStatus(mStat) && isFollowingStatus(aStat)) {
+    concl = '⚠ 异常: 大号已关注但小号未取关';
+    mismatch++;
+  } else {
+    concl = `⚠ 异常: 双方均未关注 (台账大号=${r.main_follow})`;
+    mismatch++;
+  }
+  csvRows.push([r.idx, r.nickname, r.douyin_id, r.main_follow || '', r.alt_unfollow || '', mStat, aStat, concl]);
 }
-fs.writeFileSync(path.join(dataDir, 'crosscheck.csv'), '\uFEFF' + out.join('\n'), 'utf8');
+fs.writeFileSync(path.join(dataDir, 'crosscheck.csv'), reportCsvText(cols, csvRows), 'utf8');
 
 console.log('\n===== 终态统计 =====');
 console.log(`总记录: ${rows.length}`);

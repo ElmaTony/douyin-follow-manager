@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -43,18 +44,51 @@ namespace FollowDesk {
     }
 
     internal sealed class TaskRunner : IDisposable {
+        static string cachedNode;
         readonly string root;
         ChildJob job;
         public TaskRunner(string projectRoot) { root = projectRoot; }
 
+        static string CombineDir(string baseDir, string sub) {
+            return String.IsNullOrEmpty(baseDir) ? null : Path.Combine(baseDir, sub);
+        }
+        static IEnumerable<string> CandidateDirs() {
+            foreach (var p in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
+                yield return p;
+            yield return CombineDir(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "nodejs");
+            yield return Environment.GetEnvironmentVariable("NVM_SYMLINK");
+            yield return CombineDir(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "nodejs");
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            yield return CombineDir(local, @"Volta\bin");
+            yield return CombineDir(home, @"scoop\apps\nodejs\current");
+            yield return CombineDir(home, @"scoop\apps\nodejs-lts\current");
+            string fnm = CombineDir(local, "fnm_multishells");
+            if (!String.IsNullOrEmpty(fnm) && Directory.Exists(fnm)) {
+                DirectoryInfo[] subs = null;
+                try { subs = new DirectoryInfo(fnm).GetDirectories(); } catch { }
+                if (subs != null) {
+                    foreach (var sub in subs.OrderByDescending(s => s.LastWriteTimeUtc))
+                        yield return sub.FullName;
+                }
+            }
+            yield return CombineDir(roaming, @"fnm\aliases\default");
+            yield return CombineDir(local, @"fnm\aliases\default");
+            yield return CombineDir(local, @"Programs\nodejs");
+            yield return CombineDir(roaming, "nvm");
+        }
         static string NodePath() {
-            var dirs = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator)
-                .Concat(new [] {Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),"nodejs")});
-            foreach (var dir in dirs) {
+            string hit = cachedNode;
+            if (!String.IsNullOrEmpty(hit) && File.Exists(hit)) return hit;
+            foreach (var dir in CandidateDirs()) {
+                if (String.IsNullOrWhiteSpace(dir)) continue;
                 string d = dir.Trim().Trim('"');
-                if (!Path.IsPathRooted(d)) continue;
-                var file = Path.Combine(d,"node.exe");
-                if (File.Exists(file)) return file;
+                try {
+                    if (!Path.IsPathRooted(d)) continue;
+                    var file = Path.Combine(d, "node.exe");
+                    if (File.Exists(file)) { cachedNode = file; return file; }
+                } catch (ArgumentException) { continue; }
             }
             throw new FileNotFoundException("找不到 Node.js。请检查本机的 Node.js 安装和 PATH。");
         }

@@ -1,6 +1,8 @@
 import { sleep } from './lib.mjs';
-
+import { isFollowingStatus } from './core.mjs';
 import { binding } from './local-state.mjs';
+
+export { isFollowingStatus };
 
 export function isOwner(user, which) {
   const owner = binding(which);
@@ -11,7 +13,7 @@ export function isOwner(user, which) {
 
 export function confirmedStatus(response, secUid) {
   const status = response?.follow_status;
-  if (response?.status_code !== 0 || response.sec_uid !== secUid || (status !== 0 && status !== 1)) {
+  if (response?.status_code !== 0 || response.sec_uid !== secUid || (status !== 0 && !isFollowingStatus(status))) {
     throw new Error('无法确认目标账号的关注状态，已停止');
   }
   return status;

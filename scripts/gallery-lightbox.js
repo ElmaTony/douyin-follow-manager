@@ -74,11 +74,17 @@ async function markAndAdvance(mark) {
   const current=byId.get(lb.sec);
   if (markingInViewer || !current || fixedLabel(current)) return;
   const next=nextReviewer(current);
+  const statusEl=$('lbReviewStatus');
+  const baseStatus={keep:'已标保留',unf:'已标取关',conflict:'旧标记冲突 · 请重新选择'}[markOf(current.sec_uid)] || '未标记';
+  statusEl.textContent=baseStatus;
   markingInViewer=true;
   let saved;
   try { saved=await applyDecision(current.sec_uid,mark); } finally { markingInViewer=false; }
   if (!lbEl.open || lb.sec!==current.sec_uid) return;
-  if (!saved) { $('lbReviewStatus').textContent='本次未保存，请核对后重试'; return; }
+  if (!saved) {
+    if (statusEl.textContent===baseStatus) statusEl.textContent='本次未保存，请核对后重试';
+    return;
+  }
   if (next) openLb(next.sec_uid,0);
   else {
     closeLb();

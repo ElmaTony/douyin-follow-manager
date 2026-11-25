@@ -17,7 +17,7 @@ const galleries = [
   { key: 'stale_state_v1', href: 'stale_gallery.html', name: '停更审阅' },
   { key: 'suspect_state_v1', href: 'suspect_gallery.html', name: '改名与内容变更' },
 ];
-const escapeHtml = (value) => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
+const escapeHtml = (value) => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 
 function addEvidence(rows, key, protectedIds) {
   const snap = readJson('data/snapshot_latest.json');
@@ -71,10 +71,10 @@ function addEvidence(rows, key, protectedIds) {
         }
       }
       if (key === 'stale_state_v1' && !(check?.secret && row.group === 'unknown')) {
+        const oldGap = tierOf(visibleTimes(old),priorTime).gap;
         const last = staleAtSnapshot(old,priorTime);
-        if (last?.group !== row.group) {
+        if (last?.group !== row.group && !(row.group === 'unknown' && oldGap == null)) {
           row.changes.push('活动分组变化');
-          const oldGap = tierOf(visibleTimes(old),priorTime).gap;
           const was = oldGap == null ? '无可见日期' : oldGap+' 天';
           row.changeFacts.push('距最近已知发布：上次 '+was+'，本次 '+(row.gap != null ? row.gap+' 天' : '无可见日期'));
         }

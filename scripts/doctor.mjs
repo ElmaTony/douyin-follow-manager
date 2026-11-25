@@ -7,11 +7,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { binding, initialize } from './local-state.mjs';
-import { chromium } from 'playwright-core';
 initialize();
 import { CHROME, PROJ, DATA } from './lib.mjs';
 
-import { galleryPayload, parseCsv, snapshotTime, staleAtSnapshot } from './core.mjs';
+import { galleryPayload, isLedgerHeld, isLedgerPending, parseCsv, snapshotTime, staleAtSnapshot } from './core.mjs';
 
 const results = [];
 const add = (level, name, detail) => results.push({ level, name, detail });
@@ -34,14 +33,17 @@ if (Array.isArray(ledger)) {
   const badRows = ledger.filter((r) => !r.sec_uid || !r.idx).length;
   add(dup === 0 && dupSec === 0 && badRows === 0 ? 'PASS' : 'FAIL', '台账 ledger.json',
     `${ledger.length} 条, 重复idx ${dup}, 重复账号 ${dupSec}, 缺字段 ${badRows}, 最大idx ${Math.max(0, ...idxs)}`);
-  const pending = ledger.filter((r) => r.alt_unfollow !== 'done' && r.main_follow !== 'skip_restricted');
-  add(pending.length === 0 ? 'PASS' : 'WARN', '台账待处理', `${pending.length} 条未完成`);
+  const pending = ledger.filter(isLedgerPending);
+  const held = ledger.filter(isLedgerHeld);
+  const heldNote = held.length ? ` (另有 ${held.length} 条受限/挂起)` : '';
+  add(pending.length === 0 ? 'PASS' : 'WARN', '台账待处理', `${pending.length} 条未完成${heldNote}`);
 } else add('FAIL', '台账 ledger.json', '缺失或解析失败');
 
 const reg = j(path.join(DATA, 'unfollow_registry.json'));
 if (reg?.entries) {
   const n = Object.keys(reg.entries).length;
-  add('PASS', '已取关登记表', `${n} 人`);
+  const alerts = Array.isArray(reg.refollow_alerts) ? reg.refollow_alerts.length : 0;
+  add(alerts > 0 ? 'WARN' : 'PASS', '已取关登记表', alerts > 0 ? `${n} 人 (疑似重新关注 ${alerts} 人)` : `${n} 人`);
 } else add('FAIL', '已取关登记表', 'unfollow_registry.json 缺失');
 
 const keep = j(path.join(DATA, 'user_keep_list.json'));
@@ -56,7 +58,7 @@ const susLatest = j(path.join(DATA, 'suspects_latest.json'));
 add(Array.isArray(susLatest) ? 'PASS' : 'WARN', '嫌疑库(新)', susLatest ? `${susLatest.length} 条` : '缺失');
 const banLatest = j(path.join(DATA, 'ban_latest.json')) || [];
 add(Array.isArray(banLatest) ? 'PASS' : 'FAIL', '处罚核验(新)', `${banLatest.length} 人, 处罚 ${banLatest.filter((b) => b.status === 'banned').length}`);
-const verifiedAccounts = new Map(banLatest.map(b=>[b.sec_uid,b]));
+const verifiedAccounts = new Map(banLatest.map((b) => [b.sec_uid, b]));
 const bannedLatest = new Set(banLatest.filter((b) => b.status === 'banned').map((b) => b.sec_uid));
 const accs = Object.entries(snapLatest?.accounts || {});
 
@@ -69,9 +71,9 @@ const expReview = accs.filter(([sec, a]) => {
   return (w || 0) < 20;
 }).length;
 const expSuspect = (susLatest || []).filter((x) => !bannedLatest.has(x.sec_uid)).length;
-const previousAccounts = j(path.join(DATA,'snapshot_previous.json'))?.accounts || {};
+const previousAccounts = j(path.join(DATA, 'snapshot_previous.json'))?.accounts || {};
 const expStale = asOf === null ? null : accs.filter(([sec, account]) =>
-  !bannedLatest.has(sec) && staleAtSnapshot(account, asOf, verifiedAccounts.get(sec),previousAccounts[sec])
+  !bannedLatest.has(sec) && staleAtSnapshot(account, asOf, verifiedAccounts.get(sec), previousAccounts[sec])
 ).length;
 const gallerySpec = [
   { file: 'review_gallery.html', key: 'review_state_v2', expect: expReview, src: 'snapshot <20' },
@@ -100,10 +102,11 @@ for (const f of ['crosscheck.csv', 'ledger.csv', 'unfollow_report.csv']) {
 }
 
 // ---------- 5. 脚本集合 ----------
-const must = ['lib.mjs', 'core.mjs', 'gallery.mjs', 'run.mjs', 'doctor.mjs', 'transfer.mjs', 'batch_unfollow.mjs',
+const must = ['lib.mjs', 'core.mjs', 'douyin-api.mjs', 'gallery.mjs', 'run.mjs', 'doctor.mjs', 'transfer.mjs', 'batch_unfollow.mjs',
   'preflight_incremental.mjs', 'merge_incremental.mjs', 'final_verify.mjs', 'finalize.mjs', 'update_registry.mjs',
   'setup.mjs', 'gen_review_gallery.mjs', 'gen_suspect_gallery.mjs', 'gen_stale_gallery.mjs',
-  'snapshot_main.mjs', 'local-state.mjs', 'open_review_env.mjs', 'profile-tab.mjs','gallery-unfollow.mjs','gallery-queue.js','unfollow-action.mjs', 'gallery.css', 'gallery-client.js', 'gallery-profiles.js', 'gallery-decisions.js', 'gallery-lightbox.js', 'account-checks.mjs'];
+  'snapshot_main.mjs', 'local-state.mjs', 'open_review_env.mjs', 'profile-tab.mjs', 'gallery-unfollow.mjs', 'gallery-queue.js',
+  'unfollow-action.mjs', 'gallery.css', 'gallery-client.js', 'gallery-profiles.js', 'gallery-decisions.js', 'gallery-lightbox.js', 'account-checks.mjs'];
 const missScripts = must.filter((f) => !fs.existsSync(path.join(PROJ, 'scripts', f)));
 add(missScripts.length ? 'FAIL' : 'PASS', '核心脚本齐全', missScripts.length ? '缺: ' + missScripts.join(',') : `${must.length} 个`);
 
@@ -111,11 +114,12 @@ add(missScripts.length ? 'FAIL' : 'PASS', '核心脚本齐全', missScripts.leng
 if (process.argv.includes('--browser')) {
   let browser;
   try {
-    browser = await chromium.launch({executablePath:CHROME,headless:true});
+    const { chromium } = await import('playwright-core');
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
     const tab = await browser.newPage();
     await tab.setContent('<title>关序</title>');
-    add(await tab.title() === '关序' ? 'PASS' : 'FAIL','浏览器启动','本地页面');
-  } catch (error) { add('FAIL','浏览器启动',error.message.split('\n')[0]); }
+    add((await tab.title()) === '关序' ? 'PASS' : 'FAIL', '浏览器启动', '本地页面');
+  } catch (error) { add('FAIL', '浏览器启动', error.message.split('\n')[0]); }
   finally { if (browser) await browser.close(); }
 }
 

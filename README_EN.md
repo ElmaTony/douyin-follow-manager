@@ -3,7 +3,7 @@
   <h1>Guanxu · Douyin Follow Manager</h1>
   <p><a href="README.md">简体中文</a> · <strong>English</strong></p>
   <p><strong>Review, organize and transfer your own Douyin follows on Windows.</strong></p>
-  <p><a href="#download">Download v0.5.1</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
+  <p><a href="#download">Download v0.5.2</a> · <a href="#quick-start">Quick start</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">Issues</a></p>
   <img src="assets/dashboard.png" width="840" alt="Dashboard with a fictional follow snapshot and three review galleries">
   <p><sub>All accounts, counts and migration results shown here are fictional. The application interface is in Chinese.</sub></p>
 </div>
@@ -12,7 +12,7 @@
 
 | Platform | Package | Requirements |
 | --- | --- | --- |
-| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.1/douyin-follow-manager-0.5.1-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.1/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
+| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.2/douyin-follow-manager-0.5.2-windows-x64.zip) · [SHA-256 checksums](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.2/SHA256SUMS.txt) | Node.js 20+, Google Chrome and .NET Framework 4.8 with WPF |
 
 Extract the entire ZIP to a writable folder. It includes the compiled application, its scripts and the Playwright dependency. [All releases](https://github.com/ElmaTony/douyin-follow-manager/releases).
 
@@ -22,7 +22,7 @@ Extract the entire ZIP to a writable folder. It includes the compiled applicatio
 | --- | --- |
 | Dashboard | Shows the latest local snapshot, migration progress and diagnostic results. |
 | Review galleries | Browse accounts with few posts, accounts inactive for over 30 days and accounts whose names or caption topics have changed. Mark authors and confirm unfollows inside a gallery. |
-| Migration ledger | Search individual accounts and filter pending work. The tool verifies the destination follow before removing a follow from the source account. |
+| Migration ledger | Search individual accounts, filter pending work and reset retryable held entries. The tool verifies the destination follow before removing a follow from the source account. |
 | Account actions | Preview a decision list locally, check it online, then confirm execution separately. Compare complete dated snapshots to maintain an unfollow register. |
 | Task log | Read progress and failure details, or stop an active task. |
 

@@ -8,11 +8,13 @@
  *   node run.mjs transfer                 增量转移: 前置核对 → 合并 → 自适应驱动
  *   node run.mjs unfollow <csv> [--execute]   批量取关(默认干跑, --execute 才动手)
  *   node run.mjs registry                 刷新已取关登记表(顺带检查重新关注)
+ *   node run.mjs reset-held [--include-protected]  重置台账中的可重试异常或挂起项
  */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { readJson, writeJson } from './core.mjs';
 
 const S = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(S, '..');
@@ -54,7 +56,14 @@ switch (cmd) {
     const which = rest[0] || 'all';
     const map = { review: 'gen_review_gallery.mjs', suspect: 'gen_suspect_gallery.mjs', stale: 'gen_stale_gallery.mjs' };
     if (which === 'all') { run('build_suspects_latest.mjs'); for (const s of Object.values(map)) run(s); }
-    else if (map[which]) run(map[which]);
+    else if (map[which]) {
+      const snapFile = path.join(ROOT, 'data', 'snapshot_latest.json');
+      const suspectsFile = path.join(ROOT, 'data', 'suspects_latest.json');
+      if (fs.existsSync(snapFile) && (!fs.existsSync(suspectsFile) || fs.statSync(suspectsFile).mtimeMs < fs.statSync(snapFile).mtimeMs)) {
+        run('build_suspects_latest.mjs');
+      }
+      run(map[which]);
+    }
     else { console.error('用法: node run.mjs gallery review|suspect|stale|all'); process.exit(1); }
     break;
   }
@@ -82,6 +91,35 @@ switch (cmd) {
   case 'registry':
     run('update_registry.mjs');
     break;
+  case 'reset-held': {
+    const ledgerFile = path.join(ROOT, 'data', 'ledger.json');
+    const rows = readJson(ledgerFile);
+    if (!Array.isArray(rows)) {
+      console.error('台账缺失或格式错误，无法重置。');
+      process.exit(1);
+    }
+    const includeProtected = rest.includes('--include-protected');
+    const mainHeld = new Set(['skip_unknown', 'id_check_fail', 'follow_fail', 'risk_paused', ...(includeProtected ? ['skip_protected'] : [])]);
+    const altHeld = new Set(['skip_id_fail', 'unfollow_fail', 'risk_paused']);
+    let count = 0;
+    for (const r of rows) {
+      let changed = false;
+      if (mainHeld.has(r.main_follow)) {
+        r.main_follow = '';
+        r.fail_count = 0;
+        changed = true;
+      }
+      if (altHeld.has(r.alt_unfollow)) {
+        r.alt_unfollow = '';
+        r.alt_fail_count = 0;
+        changed = true;
+      }
+      if (changed) count++;
+    }
+    if (count > 0) writeJson(ledgerFile, rows);
+    console.log(`已重置 ${count} 条异常或挂起记录为待处理。`);
+    break;
+  }
   case undefined:
   case 'help':
   case '--help':
@@ -94,6 +132,7 @@ switch (cmd) {
   gallery [review|suspect|stale|all]   重新生成审阅画廊
   open [review|stale|suspect] 打开审阅环境或指定画廊
   transfer                 增量转移: 前置核对 → 合并 → 自适应驱动 → 终验
+  reset-held [--include-protected] 重置台账中的异常或挂起项为待处理
   diff                     比对最近两次快照并导出变化清单
   refresh                  在线更新快照、核验和三个画廊
   preview <名单>             本地预览 CSV / 画廊决定名单

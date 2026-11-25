@@ -2,6 +2,7 @@ import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { reportCsvText, writeJson } from './core.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const PROJ = path.resolve(__dirname, '..');
@@ -98,11 +99,7 @@ export function loadLedger() {
 }
 
 export function saveLedger(rows) {
-  fs.mkdirSync(DATA, { recursive: true });
-  // 先写临时文件再改名, 避免中途崩溃把台账写坏
-  const tmp = LEDGER + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(rows, null, 2), 'utf8');
-  fs.renameSync(tmp, LEDGER);
+  writeJson(LEDGER, rows, 2);
 }
 
 export function toCsv(rows, file) {
@@ -120,12 +117,7 @@ export function toCsv(rows, file) {
     'alt_unfollow_time',
     'note',
   ];
-  const esc = (v) => {
-    const s = v == null ? '' : String(v);
-    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  };
-  const out = [cols.join(',')];
-  for (const r of rows) out.push(cols.map((c) => esc(r[c])).join(','));
-  fs.writeFileSync(file, '\uFEFF' + out.join('\n'), 'utf8'); // BOM: Excel 直接打开不乱码
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, reportCsvText(cols, rows.map((r) => cols.map((c) => r[c]))), 'utf8');
   return file;
 }

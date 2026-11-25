@@ -4,7 +4,7 @@ const currentGallery = document.querySelector('nav [aria-current="page"]').getAt
 const byId = new Map(DATA.map(d => [d.sec_uid, d]));
 const protectedSet = new Set(protectedIds);
 const $ = id => document.getElementById(id);
-const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const profile = sec => 'https://www.douyin.com/user/' + encodeURIComponent(sec);
 let receipts = initialReceipts || {};
 const completed = sec => Date.parse(receipts[sec]?.at)>=Date.parse(snapshotAt);
@@ -44,7 +44,6 @@ function restoreView() {
 }
 let visible = [];
 let copyingBatch = false;
-const exportable = DATA.filter(d=>!fixedLabel(d));
 const sessionKey = KEY+':review-session:'+new URL('.',location.href).href;
 let savedSession;
 try { savedSession = JSON.parse(sessionStorage.getItem(sessionKey)); } catch {}
@@ -107,6 +106,8 @@ let toastTimer;
 function toast(message) {
   $('toast').textContent = message;
   $('toast').classList.add('on');
+  if (typeof lbEl !== 'undefined' && lbEl?.open) $('lbReviewStatus').textContent = message;
+  if ($('queue')?.open) $('queueMessage').textContent = message;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('toast').classList.remove('on'), 2800);
 }
@@ -138,15 +139,16 @@ function matches(d) {
   }
 }
 function counters() {
-  let none = 0, keep = 0, unf = 0;
+  let none = 0, keep = 0, unf = 0, conflicts = 0;
   for (const d of DATA) {
     if (fixedLabel(d)) continue;
-    if (markOf(d.sec_uid) === 'keep') keep++;
-    else if (markOf(d.sec_uid) === 'unf') unf++;
-    else if (!markOf(d.sec_uid)) none++;
+    const mark = markOf(d.sec_uid);
+    if (mark === 'keep') keep++;
+    else if (mark === 'unf') unf++;
+    else if (mark === 'conflict') conflicts++;
+    else if (!mark) none++;
   }
   $('cNone').textContent = none;
-  const conflicts = exportable.filter(d=>markOf(d.sec_uid)==='conflict').length;
   $('conflicts').hidden = !conflicts;
   $('conflicts').textContent = '旧标记有冲突（'+conflicts+' 位）';
   $('markFilter').querySelector('[value="conflict"]').hidden = !conflicts && $('markFilter').value!=='conflict';
@@ -226,7 +228,7 @@ function render() {
   const query = $('search').value.trim().normalize('NFKC').toLowerCase();
   visible = DATA.filter(d => matches(d) && (linkedAccount ? d.sec_uid === $('search').value : !query || searchText.get(d.sec_uid).includes(query)));
   const order = $('sortOrder').value;
-  if (order === 'oldest') visible.sort((a,b) => b.gap - a.gap);
+  if (order === 'oldest') visible.sort((a, b) => (b.gap ?? -1) - (a.gap ?? -1));
   if (order === 'followers') visible.sort((a,b) => (b.followers ?? -1) - (a.followers ?? -1));
   if (cursor > visible.length) setCursor(visible.length);
   const grid = rows => '<div class="grid">' + rows.map(card).join('') + '</div>';
@@ -437,19 +439,23 @@ $('seg').addEventListener('click', e => {
 });
 function exportRows(scope) {
   if (scope==='combined') return union.filter(d=>!completed(d.sec_uid) && decided(markOf(d.sec_uid)));
-  return scope==='all' ? exportable.filter(d=>!fixedLabel(d)) : visible.filter(d=>!fixedLabel(d));
+  return scope==='all' ? DATA.filter(d=>!fixedLabel(d)) : visible.filter(d=>!fixedLabel(d));
 }
 function updateExport() {
   updateQueueButton();
   const scope = $('exportScope');
-  const count = visible.filter(d=>!fixedLabel(d)).length;
-  scope.options[0].textContent = '当前结果（'+count+' 位）';
-  scope.options[1].textContent = '整个画廊（'+exportRows('all').length+' 位）';
-  const combined = exportRows('combined').length;
-  scope.options[2].textContent = '三个画廊已标记（'+combined+' 位）';
-  const rows=exportRows(scope.value);
+  const visibleRows = visible.filter(d=>!fixedLabel(d));
+  const allRows = exportRows('all');
+  const combinedRows = exportRows('combined');
+  scope.options[0].textContent = '当前结果（'+visibleRows.length+' 位）';
+  scope.options[1].textContent = '整个画廊（'+allRows.length+' 位）';
+  scope.options[2].textContent = '三个画廊已标记（'+combinedRows.length+' 位）';
+  const rows = scope.value==='combined' ? combinedRows : scope.value==='all' ? allRows : visibleRows;
   const totals={keep:0,unf:0,conflict:0,none:0};
-  for (const d of rows) totals[markOf(d.sec_uid) || 'none']++;
+  for (const d of rows) {
+    const mark = markOf(d.sec_uid);
+    totals[mark || 'none']++;
+  }
   $('exportSummary').textContent='待导出：取关 '+totals.unf+' · 保留 '+totals.keep+
     (totals.none?' · 未审 '+totals.none:'')+(totals.conflict?' · 待复核 '+totals.conflict:'');
   $('btnCopy').disabled = $('btnDown').disabled = !rows.length;
@@ -464,8 +470,11 @@ function decisionList() {
   }
   const scope = $('exportScope').value;
   const rows = exportRows(scope);
-  return rows.map(d => [d.sec_uid, d.nickname, d.douyin_id,
-    markOf(d.sec_uid) === 'keep' ? '保留' : markOf(d.sec_uid) === 'unf' ? '取关' : markOf(d.sec_uid) === 'conflict' ? '待复核' : '未审'].map(field).join('\t')).join('\n');
+  return rows.map(d => {
+    const mark = markOf(d.sec_uid);
+    return [d.sec_uid, d.nickname, d.douyin_id,
+      mark === 'keep' ? '保留' : mark === 'unf' ? '取关' : mark === 'conflict' ? '待复核' : '未审'].map(field).join('\t');
+  }).join('\n');
 }
 $('btnCopy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(decisionList()); toast('决定名单已复制'); }

@@ -8,17 +8,12 @@ import { launch, sleep } from './lib.mjs';
 import { isOwner, selfInfo } from './account-checks.mjs';
 import { fileURLToPath } from 'node:url';
 import { readJson, writeJson } from './core.mjs';
-
+import { COMMON, maxFollowingPages } from './douyin-api.mjs';
 import { readRecentWorks } from './recent-works.mjs';
 
-const COMMON = {
-  device_platform: 'webapp', aid: '6383', channel: 'channel_pc_web', pc_client_type: '1',
-  version_code: '170400', version_name: '17.4.0', cookie_enabled: 'true', platform: 'PC', downlink: '10',
-};
-
 const OUT = 'data/snapshot_latest.json';
-const progressFile = fileURLToPath(new URL('../data/.snapshot-progress.json',import.meta.url));
-const publishedFile = fileURLToPath(new URL('../data/snapshot_latest.json',import.meta.url));
+const progressFile = fileURLToPath(new URL('../data/.snapshot-progress.json', import.meta.url));
+const publishedFile = fileURLToPath(new URL('../data/snapshot_latest.json', import.meta.url));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 const m = await launch('main');
@@ -29,8 +24,9 @@ try {
 
   // ---- 1) 关注列表 ----
   const list = new Map();
+  const maxPages = maxFollowingPages(owner.following_count);
   let maxTime = 0, pageNo = 0, hasMore = true, fails = 0;
-  while (hasMore && pageNo < 150) {
+  while (hasMore && pageNo < maxPages) {
     pageNo++;
     const res = await page.evaluate(async ({ sec, maxTime, common }) => {
       const qs = new URLSearchParams({
@@ -44,7 +40,7 @@ try {
     }, { sec: owner.sec_uid, maxTime, common: COMMON });
     if (res?.status_code !== 0) { if (++fails > 3) break; log('列表页失败重试'); await sleep(5000); continue; }
     fails = 0;
-    if (!Array.isArray(res.followings) || ![0,1,true,false].includes(res.has_more)) throw new Error('关注列表缺少完整性信息');
+    if (!Array.isArray(res.followings) || ![0, 1, true, false].includes(res.has_more)) throw new Error('关注列表缺少完整性信息');
     hasMore = Boolean(res.has_more);
     const users = res.followings || [];
     if (!users.length) break;
@@ -63,41 +59,44 @@ try {
     if (!hasMore) break;
     await sleep(700);
   }
-  if (hasMore || list.size !== owner.following_count) throw new Error('关注列表不完整，已保留原快照');
+  if (hasMore || list.size !== owner.following_count) {
+    throw new Error(`关注列表不完整 (${list.size}/${owner.following_count})，已保留原快照`);
+  }
   log(`关注列表: ${list.size} 人, 开始逐人抓作品...`);
 
   // ---- 2) 逐人作品 ----
   const cached = readJson(progressFile);
   const age = Date.now() - Date.parse(cached?.exported_at);
-  const resume = cached?.owner === owner.sec_uid && age >= 0 && age <= 6*3600000 &&
+  const resume = cached?.owner === owner.sec_uid && age >= 0 && age <= 6 * 3600000 &&
     cached.exported_at !== readJson(publishedFile)?.exported_at &&
     cached.accounts && typeof cached.accounts === 'object';
   const checkedAt = new Date().toISOString();
-  const snap = { exported_at: resume ? cached.exported_at : checkedAt, following_checked_at:checkedAt, accounts:Object.fromEntries(list) };
-  const saveProgress = () => writeJson(progressFile,{owner:owner.sec_uid,...snap});
-  const reusable = (sec,a) => resume && cached.accounts[sec]?.fetch === 'ok' && cached.accounts[sec].works === a.works;
+  const snap = { exported_at: resume ? cached.exported_at : checkedAt, following_checked_at: checkedAt, accounts: Object.fromEntries(list) };
+  const saveProgress = () => writeJson(progressFile, { owner: owner.sec_uid, ...snap });
+  const reusable = (sec, a) => resume && cached.accounts[sec]?.fetch === 'ok' && cached.accounts[sec].works === a.works;
   let reused = 0;
-  for (const [sec,a] of list) {
-    if (!reusable(sec,a)) continue;
+  for (const [sec, a] of list) {
+    if (!reusable(sec, a)) continue;
     const saved = cached.accounts[sec];
-    for (const key of ['posts','fetch','times','covers','captions','aigc_n','n_visible','works_checked_at']) {
-      if (Object.hasOwn(saved,key)) a[key] = saved[key];
+    for (const key of ['posts', 'fetch', 'times', 'covers', 'captions', 'aigc_n', 'n_visible', 'works_checked_at']) {
+      if (Object.hasOwn(saved, key)) a[key] = saved[key];
     }
     reused++;
   }
-  if (resume) log('续采：本次关注名单中已有 '+reused+' 人的作品可用，其余逐人补查。');
-  let processed = 0, ok = reused, empty = [...list.values()].filter(a=>a.fetch==='ok' && !a.n_visible).length, consec = 0, cooldowns = 0;
+  if (resume) log('续采：本次关注名单中已有 ' + reused + ' 人的作品可用，其余逐人补查。');
+  let processed = 0, ok = reused, empty = [...list.values()].filter((a) => a.fetch === 'ok' && !a.n_visible).length;
+  let consec = 0, cooldowns = 0, failSaves = 0;
   for (const [sec, a] of list) {
     if (a.fetch === 'ok') continue;
     processed++;
     try {
-      a.posts = await readRecentWorks(page,sec,COMMON);
+      a.posts = await readRecentWorks(page, sec, COMMON);
       a.fetch = 'ok';
       a.works_checked_at = new Date().toISOString();
-      a.times = a.posts.map(p=>p.time);
-      a.covers = a.posts.filter(p=>p.cover).slice(0,9).map(p=>p.cover);
-      a.captions = a.posts.filter(p=>p.caption).map(p=>p.caption.slice(0,120));
-      a.aigc_n = a.posts.filter(p=>p.ai).length;
+      a.times = a.posts.map((p) => p.time);
+      a.covers = a.posts.filter((p) => p.cover).slice(0, 9).map((p) => p.cover);
+      a.captions = a.posts.filter((p) => p.caption).map((p) => p.caption.slice(0, 120));
+      a.aigc_n = a.posts.filter((p) => p.ai).length;
       a.n_visible = a.posts.length;
       ok++; consec = 0;
       if (!a.n_visible) empty++;
@@ -105,15 +104,21 @@ try {
       a.fetch = 'ERR:' + e.message.slice(0, 30);
       if (page.isClosed?.()) { saveProgress(); throw new Error('采集窗口已关闭，已保存作品进度，重新在线更新即可续采'); }
       consec++;
+      failSaves++;
     }
-    if (processed % 20 === 0 || a.fetch !== 'ok') saveProgress();
+    if (processed % 20 === 0 || (a.fetch !== 'ok' && failSaves % 10 === 0)) saveProgress();
 
-    if (consec >= 3 && cooldowns < 12) {
-      cooldowns++; consec = 0;
-      log(`!! 连续失败, 冷却 120 秒 (第 ${cooldowns} 次)`);
-      await sleep(120000);
+    if (consec >= 3) {
+      if (cooldowns < 12) {
+        cooldowns++; consec = 0;
+        log(`!! 连续失败, 冷却 120 秒 (第 ${cooldowns} 次)`);
+        await sleep(120000);
+      } else {
+        saveProgress();
+        throw new Error('连续请求失败过多（可能触发平台验证或登录失效），已保存作品进度，请在网页完成验证后重新在线更新续采');
+      }
     }
-    if (processed % 20 === 0) { log(`进度 ${reused+processed}/${list.size} (ok ${ok}, 无可见作品 ${empty})`); }
+    if (processed % 20 === 0) { log(`进度 ${reused + processed}/${list.size} (ok ${ok}, 无可见作品 ${empty})`); }
     await sleep(3200 + Math.floor(Math.random() * 1400));
   }
   saveProgress();
@@ -121,5 +126,5 @@ try {
   writeJson(OUT, snap);
   log(`===== 完成: ${list.size} 人, ok ${ok}, 无可见作品 ${empty}, 冷却 ${cooldowns} 次 -> ${OUT} =====`);
 } finally {
-  await m.context.close();
+  await m.context.close().catch(() => {});
 }

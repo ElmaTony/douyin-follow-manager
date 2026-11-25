@@ -17,13 +17,13 @@ try {
         '关序.exe','README.md','README_EN.md','CHANGELOG.md','assets/dashboard.png','assets/ledger.png',
         'desktop/desk.svg','desktop/status.mjs','package.json','package-lock.json','node_modules/playwright-core',
         'scripts/account-checks.mjs', 'scripts/batch_unfollow.mjs', 'scripts/build_suspects_latest.mjs',
-    'scripts/topic-change.mjs','scripts/recent-works.mjs','scripts/compare_snapshots.mjs','scripts/core.mjs', 'scripts/doctor.mjs', 'scripts/driver2.mjs',
+    'scripts/topic-change.mjs','scripts/recent-works.mjs','scripts/compare_snapshots.mjs','scripts/core.mjs', 'scripts/doctor.mjs', 'scripts/douyin-api.mjs', 'scripts/driver2.mjs',
     'scripts/final_verify.mjs', 'scripts/finalize.mjs', 'scripts/gallery-client.js','scripts/gallery-profiles.js','scripts/gallery-decisions.js',
     'scripts/gallery-lightbox.js', 'scripts/gallery.css', 'scripts/gallery.mjs',
     'scripts/gen_review_gallery.mjs', 'scripts/gen_stale_gallery.mjs', 'scripts/gen_suspect_gallery.mjs',
     'scripts/lib.mjs', 'scripts/local-state.mjs', 'scripts/merge_incremental.mjs',
     'scripts/open_review_env.mjs','scripts/profile-tab.mjs','scripts/gallery-unfollow.mjs','scripts/gallery-queue.js','scripts/unfollow-action.mjs', 'scripts/preflight_incremental.mjs', 'scripts/prep_suspect_unfollow.mjs',
-    'scripts/qa_gallery.mjs','scripts/qa_unfollow.mjs', 'scripts/qa_safety.mjs', 'scripts/read_suspect_state.mjs',
+    'scripts/read_suspect_state.mjs',
     'scripts/rebuild_latest.mjs', 'scripts/refresh_review.mjs', 'scripts/run.mjs',
     'scripts/scan_bans_latest.mjs', 'scripts/setup.mjs', 'scripts/snapshot_main.mjs',
     'scripts/sync_marks.mjs', 'scripts/transfer.mjs', 'scripts/unfollow_list.mjs',
@@ -40,7 +40,7 @@ try {
                     Get-ChildItem -LiteralPath $entry -File -Recurse -Force
                 } else { Get-Item -LiteralPath $entry }
                 foreach ($item in $items) {
-                    $nameInZip = $item.FullName.Substring($root.Length+1).Replace('\\','/')
+                    $nameInZip = $item.FullName.Substring($root.Length+1).Replace('\','/')
                     $null = [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$item.FullName,$nameInZip,'Optimal')
                 }
             }

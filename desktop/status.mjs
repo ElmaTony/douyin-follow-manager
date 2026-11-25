@@ -54,5 +54,16 @@ const report = read('最近自检', () => {
   if (!levels.every(level => ['PASS','WARN','FAIL'].includes(level))) throw new Error('自检报告格式错误');
   return ['PASS','WARN','FAIL'].map((v,i) => levels.filter(l=>l===v).length+' '+['通过','提醒','失败'][i]).join('　');
 });
-const registry = read('取关登记表', () => Object.keys(json('unfollow_registry.json').entries).length);
+const registry = read('取关登记表', () => {
+  const reg = json('unfollow_registry.json');
+  if (!reg || !reg.entries || typeof reg.entries !== 'object' || Array.isArray(reg.entries)) throw new Error('登记表格式错误');
+  if (Array.isArray(reg.refollow_alerts) && reg.refollow_alerts.length > 0) {
+    warnings.push(
+      '发现 ' + reg.refollow_alerts.length + ' 位已登记取关的博主重新出现在大号关注中：' +
+      reg.refollow_alerts.slice(0, 4).map(x => x.current_nickname || x.nickname || x.sec_uid).join('、') +
+      (reg.refollow_alerts.length > 4 ? ' 等' : '') + '。'
+    );
+  }
+  return Object.keys(reg.entries).length;
+});
 console.log(JSON.stringify({mainOwner,altOwner,ledger,snapshot,canCompare,galleries,report,registry,warnings}));

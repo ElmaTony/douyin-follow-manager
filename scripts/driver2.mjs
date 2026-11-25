@@ -1,6 +1,7 @@
 /** 分批执行当前台账中的迁移任务。遇到未确认结果后由用户复核。 */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { isLedgerDone, isLedgerHeld, isLedgerPending, isLedgerRetryable } from './core.mjs';
 
 const NODE = process.execPath;
 const BATCH = 8;
@@ -19,7 +20,7 @@ function readLedger() {
 
 function pending(rows) {
   return rows
-    .filter((r) => r.alt_unfollow !== 'done' && r.main_follow !== 'skip_restricted' && r.alt_unfollow !== 'skip_not_following')
+    .filter(isLedgerPending)
     .sort((a, b) => {
       const prio = (r) => (r.main_follow === 'done' || r.main_follow === 'already' ? 0 : 1);
       return prio(a) - prio(b) || a.idx - b.idx;
@@ -36,7 +37,7 @@ while (rounds < 40) {
   log(`--- 第 ${rounds} 轮: 处理 ${ids.length} 个 [${ids.join(',')}] ---`);
 
   const res = spawnSync(NODE, ['scripts/transfer.mjs', String(ids.length), `--ids=${ids.join(',')}`], {
-    stdio: 'inherit', encoding: 'utf8', windowsHide:true,
+    stdio: 'inherit', encoding: 'utf8', windowsHide: true,
   });
   if (res.status === 2) { log('!! 登录态失效, driver2 停止, 需重新扫码'); process.exit(2); }
   if (res.status !== 0 || res.error) {
@@ -46,13 +47,10 @@ while (rounds < 40) {
 
   const rows = readLedger();
   const doneRows = rows.filter((r) => ids.includes(r.idx));
-  const ok = doneRows.filter((r) => (r.main_follow === 'done' || r.main_follow === 'already') && r.alt_unfollow === 'done').length;
-  const restricted = doneRows.filter((r) => r.main_follow === 'skip_restricted').length;
-  const failed = doneRows.filter((r) =>
-    ['follow_fail', 'skip_unknown', 'risk_paused', 'id_check_fail'].includes(r.main_follow) ||
-    ['unfollow_fail', 'risk_paused', 'skip_id_fail'].includes(r.alt_unfollow)
-  ).length;
-  log(`第 ${rounds} 轮结果: 成功 ${ok}, 受限 ${restricted}, 失败/风控 ${failed}`);
+  const ok = doneRows.filter(isLedgerDone).length;
+  const held = doneRows.filter(isLedgerHeld).length;
+  const failed = doneRows.filter(isLedgerRetryable).length;
+  log(`第 ${rounds} 轮结果: 成功 ${ok}, 受限/挂起 ${held}, 失败/风控 ${failed}`);
 
   if (!pending(rows).length) break;
   if (failed > 0) {

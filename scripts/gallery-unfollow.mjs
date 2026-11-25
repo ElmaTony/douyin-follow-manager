@@ -62,7 +62,7 @@ export async function attachGalleryUnfollow(context,paths, overrides={}) {
   }
   async function currentMarks(source,stamp,ids) {
     // A same-tab gallery link briefly replaces the document during navigation.
-    for (let attempt=0;attempt<6;attempt++) {
+    for (let attempt=0;attempt<12;attempt++) {
       const tabs=[...new Set([source,...context.pages()])];
       for (const tab of tabs) {
         if (tab.isClosed() || !allowed.has(cleanUrl(tab.url()))) continue;
@@ -73,7 +73,7 @@ export async function attachGalleryUnfollow(context,paths, overrides={}) {
         },{stamp,ids}).catch(()=>null);
         if (records) return records;
       }
-      if (attempt<5) await sleep(150);
+      if (attempt<11) await sleep(200);
     }
     throw new Error('画廊已关闭或正在更新，请重新打开后核对');
   }
@@ -96,7 +96,7 @@ export async function attachGalleryUnfollow(context,paths, overrides={}) {
         checkpoint();
       }
     } catch(error) {
-      job.message=/验证|大号身份异常|快照已更新|后台处理页|画廊已关闭/.test(error.message) ? error.message.split('\n')[0].slice(0,90) : '处理已中断，请检查网络和大号登录后重试';
+      job.message=/验证|大号身份异常|无法确认目标账号|快照已更新|后台处理页|画廊已关闭/.test(error.message) ? error.message.split('\n')[0].slice(0,90) : '处理已中断，请检查网络和大号登录后重试';
       for (const row of job.rows) {
         if (row.code==='working') Object.assign(row,{code:'unverified',detail:'本次处理未能核实'});
         if (row.code==='waiting') Object.assign(row,{code:'unstarted',detail:'尚未开始'});

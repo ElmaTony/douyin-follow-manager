@@ -52,8 +52,8 @@ try {
     if(u.pathname==='/fixture-click') {
       clicked.push(id); live.delete(id); return route.fulfill({body:'ok'});
     }
-    if(u.pathname.includes('/profile/other/')) return route.fulfill({json:{status_code:0,user:{...d,unique_id:d.douyin_id,follow_status:live.has(id)?1:0}}});
-    const label=id==='sample-b' && !allowB?'关注':'已关注';
+    if(u.pathname.includes('/profile/other/')) return route.fulfill({json:{status_code:0,user:{...d,unique_id:d.douyin_id,follow_status:live.has(id)?(id==='sample-a'?2:1):0}}});
+    const label=id==='sample-b' && !allowB?'关注':id==='sample-a'?'互相关注':'已关注';
     return route.fulfill({contentType:'text/html;charset=utf-8',body:'<title>'+d.nickname+'</title><p>抖音号：'+d.douyin_id+'</p><button data-e2e="user-info-follow-btn" onclick="fetch(\'/fixture-click?sec_user_id='+id+'\')">'+label+'</button>'});
   });
   const page=context.pages()[0];
@@ -120,6 +120,7 @@ try {
   assert.equal(exported.split('\t')[0],'sample-c');
   const registered=JSON.parse(fs.readFileSync('data/unfollow_registry.json'));
   assert.deepEqual(Object.keys(registered.entries),['sample-a','sample-b']);
+  assert.equal(registered.entries['sample-a'].reason,'人工决定取关，已在线复核');
   activeOwner='fixture-other';
   await page.locator('#openQueue').click();
   const deferred=page.locator('#queueRows input');

@@ -117,7 +117,7 @@ h1{font-family:var(--display);font-size:clamp(27px,3.15vw,49px);line-height:1.2;
 #lb .bottom{min-height:64px;display:grid;grid-template-columns:1fr auto 1fr;border-top:1px solid #ffffff20}
 #lb .tip,#lb .attr{font-size:12px;color:#d6c8b8}#lb .tip{text-align:right}
 .navpill{display:flex;align-items:center;gap:12px}#lbPos{font:14px var(--num)}
-#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:90vw;padding:8px 15px;border-radius:7px;background:var(--ink);color:var(--paper);font-size:13px;visibility:hidden;pointer-events:none}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:20;max-width:90vw;padding:8px 15px;border-radius:7px;background:var(--ink);color:var(--paper);font-size:13px;visibility:hidden;pointer-events:none}
 #toast.on{visibility:visible}
 @media(max-width:800px){
   .wrap{width:calc(100% - 36px)}.overview{padding:23px 0 18px}.counts div{min-width:74px;padding:0 12px}.grid{gap:12px}

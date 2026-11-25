@@ -1,18 +1,105 @@
 /** 无登录浏览器复测。--offline 阻止联网，加 --keep-screenshots 可将截图保存在所测画廊目录下。 */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
 import { attachProfileTab } from './profile-tab.mjs';
 import { CHROME, DATA } from './lib.mjs';
 
 const isRecorded = (cfg,sec)=>Date.parse(cfg.receipts?.[sec]?.at)>=Date.parse(cfg.snapshotAt);
 const args = process.argv.slice(2);
-const offline = args.includes('--offline');
-const target = path.resolve(args.find(arg => !arg.startsWith('--')) || path.join(DATA, 'suspect_gallery.html'));
-const galleryDir = path.dirname(target);
-const output = args.includes('--keep-screenshots') ? await fs.mkdtemp(path.join(galleryDir, '.gallery-qa-')) : null;
+const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
+const originalCwd = process.cwd();
+const explicitTarget = args.find(arg => !arg.startsWith('--'));
+const defaultTarget = path.join(DATA, 'suspect_gallery.html');
+const useFixture = !explicitTarget && !fsSync.existsSync(defaultTarget);
+const offline = args.includes('--offline') || useFixture;
+
+async function buildFixtureGalleries(rootDir) {
+  const dataDir = path.join(rootDir, 'data');
+  await fs.mkdir(dataDir, { recursive: true });
+  const current = '2026-06-15T10:00:00.000Z';
+  const previous = '2026-04-15T10:00:00.000Z';
+  const asOf = Date.parse(current) / 1000;
+  const twoPosts = (n, time, c1, c2) => [
+    { id: String(7300000000000000000n + BigInt(n * 10 + 1)), time, caption: c1, cover: `https://fixture.invalid/${n}-1.jpg`, type: 'video' },
+    { id: String(7300000000000000000n + BigInt(n * 10 + 2)), time: time - 86400, caption: c2, cover: `https://fixture.invalid/${n}-2.jpg`, type: 'note' },
+  ];
+  const makeReviewed = (sec, nickname, works, days, n, c1, c2, followers) => {
+    const posts = twoPosts(n, asOf - days * 86400, c1, c2);
+    return {
+      sec_uid: sec, nickname, douyin_id: 'fx_' + sec.replaceAll('-', '_'), works, followers,
+      n_visible: posts.length, times: posts.map(p => p.time), captions: [c1, c2],
+      covers: posts.map(p => p.cover), posts,
+    };
+  };
+  const accounts = {
+    'triple-a': makeReviewed('triple-a', '新名主厨甲', 4, 65, 1, '家常菜谱一', '烘焙食材二', 1200),
+    'triple-b': makeReviewed('triple-b', '新名户外乙', 8, 120, 2, '徒步露营一', '景区酒店二', 3500),
+    'stale-s180': makeReviewed('stale-s180', '当前新名丙', 3, 210, 3, '日常记录一', '日常记录二', 800),
+    'shift-only': makeReviewed('shift-only', '固定昵称丁', 5, 45, 4, '护肤粉底一', '彩妆口红二', 2400),
+    'low-e': makeReviewed('low-e', '新名作者戊', 2, 195, 5, '随拍记录一', '随拍记录二', 500),
+    'low-f': makeReviewed('low-f', '新名作者己', 6, 95, 6, '周末随拍三', '周末随拍四', 620),
+    'low-g': makeReviewed('low-g', '作者庚', 1, 40, 7, '生活片段五', '生活片段六', 150),
+    'low-new': makeReviewed('low-new', '新增作者辛', 11, 10, 8, '近期作品一', '近期作品二', 900),
+    'nocover-zero': {
+      sec_uid: 'nocover-zero', nickname: '无图新名壬', douyin_id: 'fx_nocover_zero',
+      works: 0, followers: 80, n_visible: 0, times: [], captions: [], covers: [],
+    },
+    'nocover-stale': {
+      sec_uid: 'nocover-stale', nickname: '无图停更癸', douyin_id: 'fx_nocover_stale',
+      works: 25, followers: 410, n_visible: 0, times: [asOf - 200 * 86400], captions: ['早期动态'], covers: [],
+    },
+    'unknown-nodate': {
+      sec_uid: 'unknown-nodate', nickname: '待核作者子', douyin_id: 'fx_unknown_nodate',
+      works: 4, followers: 300, n_visible: 0, times: [], captions: [], covers: [],
+    },
+    'protected-keep': makeReviewed('protected-keep', '保留新名丑', 3, 190, 9, '保留作品一', '保留作品二', 15000),
+    'banned-user': {
+      sec_uid: 'banned-user', nickname: '受限作者寅', douyin_id: 'fx_banned_user',
+      works: 2, followers: 120, n_visible: 0, times: [asOf - 50 * 86400], captions: [], covers: [],
+    },
+  };
+  const prevAccounts = {};
+  for (const [sec, acc] of Object.entries(accounts)) {
+    if (sec === 'low-new') continue;
+    prevAccounts[sec] = structuredClone(acc);
+  }
+  prevAccounts['triple-a'].nickname = '旧名画师甲';
+  prevAccounts['triple-a'].captions = ['水彩风景一', '素描练习二'];
+  prevAccounts['triple-b'].nickname = '旧名数码乙';
+  prevAccounts['triple-b'].captions = ['硬件评测一', '编程软件二'];
+  prevAccounts['stale-s180'].nickname = '历史旧名丙';
+  prevAccounts['shift-only'].captions = ['股票财报一', '基金理财二'];
+  prevAccounts['low-e'].nickname = '旧名作者戊';
+  prevAccounts['low-f'].nickname = '旧名作者己';
+  prevAccounts['nocover-zero'].nickname = '无图旧名壬';
+  prevAccounts['protected-keep'].nickname = '保留旧名丑';
+
+  const writeData = (name, obj) => fs.writeFile(path.join(dataDir, name), JSON.stringify(obj, null, 2), 'utf8');
+  await writeData('snapshot_previous.json', { exported_at: previous, accounts: prevAccounts });
+  await writeData('snapshot_latest.json', { exported_at: current, accounts });
+  await writeData('ledger.json', []);
+  await writeData('user_keep_list.json', { keeps: [{ sec_uid: 'protected-keep', nickname: '保留新名丑', douyin_id: 'fx_protected_keep' }] });
+  await writeData('unfollow_registry.json', { entries: {} });
+  await writeData('ban_latest.json', Object.values(accounts).map(a => ({
+    sec_uid: a.sec_uid,
+    nickname: a.nickname,
+    status: a.sec_uid === 'banned-user' ? 'banned' : 'normal',
+    punish_text: a.sec_uid === 'banned-user' ? '账号已被禁言' : '',
+    secret: 0,
+    works_fresh: a.works,
+  })));
+  for (const script of ['build_suspects_latest.mjs', 'gen_review_gallery.mjs', 'gen_stale_gallery.mjs', 'gen_suspect_gallery.mjs']) {
+    const res = spawnSync(process.execPath, [path.join(scriptsDir, script)], { cwd: rootDir, encoding: 'utf8', windowsHide: true });
+    assert.equal(res.status, 0, `${script} failed: ${res.stderr}`);
+  }
+}
+
 const url = file => pathToFileURL(file).href;
 async function settleDecisions(page) {
   await page.waitForFunction(async()=>{
@@ -20,8 +107,23 @@ async function settleDecisions(page) {
     return ![...held,...pending].some(lock=>lock.name.startsWith(decisionPrefix));
   });
 }
-const browser = await chromium.launch({ executablePath: CHROME, headless: !args.includes('--headed') });
+let tempRoot = null;
+let galleryDir = '';
+let browser = null;
 try {
+  if (useFixture) {
+    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'douyin-gallery-qa-'));
+    await buildFixtureGalleries(tempRoot);
+    process.chdir(tempRoot);
+  }
+  const target = path.resolve(explicitTarget || (tempRoot ? path.join(tempRoot, 'data', 'suspect_gallery.html') : defaultTarget));
+  galleryDir = path.dirname(target);
+  const output = args.includes('--keep-screenshots') ? await fs.mkdtemp(path.join(galleryDir, '.gallery-qa-')) : null;
+  browser = await chromium.launch({
+    executablePath: CHROME,
+    headless: !args.includes('--headed'),
+    args: offline ? ['--host-resolver-rules=MAP * ~NOTFOUND'] : [],
+  });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
   if (offline) await context.route(/^https?:/, route => route.abort());
   const page = await context.newPage();
@@ -263,7 +365,13 @@ try {
   console.log('灯箱 / 键盘 / 深色布局通过');
   if (output) console.log('截图目录',output);
 } finally {
-  await browser.close();
+  if (browser) await browser.close();
+  if (tempRoot) {
+    process.chdir(originalCwd);
+    if (path.dirname(tempRoot) === path.resolve(os.tmpdir()) && path.basename(tempRoot).startsWith('douyin-gallery-qa-')) {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  }
 }
 
 async function checkLongReview(browser) {
@@ -282,7 +390,7 @@ async function checkLongReview(browser) {
     const cfg=await page.locator('#gallery-data').evaluate(e=>JSON.parse(e.textContent));
     const editable=cfg.data.filter(d=>d.covers?.length && !isRecorded(cfg,d.sec_uid) && !d.badgeFix && !cfg.protectedIds.includes(d.sec_uid) && !cfg.presetKeep.includes(d.sec_uid));
     const author=editable.find(d=>d.covers.length>=2 && d.alsoIn?.length);
-    if (!author || editable.length<3) return;
+    if (!author || editable.length<3) { assert.ok(!useFixture, '自包含复测必须覆盖连续审阅'); return; }
     const marks=()=>page.evaluate(()=>readMarks());
     const row=page.locator('.card[data-sec="'+author.sec_uid+'"]');
     await row.locator('.cover').nth(1).click();
@@ -332,7 +440,7 @@ async function checkProfileTab(browser) {
       r.fulfill({contentType:'text/html',body:'<title>Example profile</title>'}) : r.abort());
     const gallery=await ctx.newPage(); await gallery.goto(url(files[0]));
     const links=gallery.locator('.plink');
-    if (await links.count()<3) return;
+    if (await links.count()<3) { assert.ok(!useFixture, '自包含复测必须覆盖主页标签页复用'); return; }
     await gallery.locator('#reuseProfile').check();
     const href=async i=>links.nth(i).getAttribute('href');
     const firstUrl=await href(0);
@@ -349,7 +457,8 @@ async function checkProfileTab(browser) {
     assert.equal(await tab.evaluate(()=>window.guanxuOpenProfile('example')),false,'外部页面不能操作专用标签页');
     await gallery.bringToFront();
     const [separate]=await Promise.all([ctx.waitForEvent('page'),links.first().click({modifiers:['Control']})]);
-    await separate.waitForURL(firstUrl);
+    await separate.waitForLoadState();
+    assert.ok(separate !== tab && tab.url() === secondUrl, 'Ctrl 单击不得覆盖专用标签页');
     assert.equal(ctx.pages().length,3,'Ctrl 单击应保留对照页');
     await separate.close();
     await tab.goto(secondUrl+'?modal_id=1');
@@ -393,7 +502,7 @@ async function checkCrossDecisions(browser) {
     }
     const choices=unionIds.filter(sec=>!isRecorded(configs[0],sec) && indices[0].has(sec) && !configs[0].presetKeep.includes(sec));
     const sec=choices.find(id=>indices.every(m=>m.has(id))) || choices.find(id=>indices.slice(1).some(m=>m.has(id)));
-    if (!sec) {console.log('没有可操作的交集账号，已核对分类与保护范围');return;}
+    if (!sec) { assert.ok(!useFixture, '自包含复测必须覆盖跨画廊决定同步'); console.log('没有可操作的交集账号，已核对分类与保护范围');return;}
     const dest=indices.findIndex((m,i)=>i>0 && m.has(sec));
     const alt=unionIds.find(id=>!isRecorded(configs[0],id) && id!==sec && indices[dest].has(id) && !configs[0].presetKeep.includes(id));
     const card=(p,id)=>p.locator('.card[data-sec="'+id+'"]');

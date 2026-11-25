@@ -4,7 +4,7 @@
   <p><strong>简体中文</strong> · <a href="README_EN.md">English</a></p>
   <p><strong>在 Windows 上审阅、整理和迁移自己的抖音关注列表。</strong></p>
   <p>从最近一次快照找出需要复核的账号，把决定导出为名单，再逐条核对。</p>
-  <p><a href="#下载">下载 v0.5.1</a> · <a href="#快速开始">快速开始</a> · <a href="#界面预览">界面预览</a> · <a href="CHANGELOG.md">更新记录</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">反馈问题</a></p>
+  <p><a href="#下载">下载 v0.5.2</a> · <a href="#快速开始">快速开始</a> · <a href="#界面预览">界面预览</a> · <a href="CHANGELOG.md">更新记录</a> · <a href="https://github.com/ElmaTony/douyin-follow-manager/issues">反馈问题</a></p>
   <img src="assets/dashboard.png" width="840" alt="示例工作台，显示迁移进度及三个审阅画廊">
   <p><sub>截图中的账号、数量和迁移结果均为虚构示例。</sub></p>
 </div>
@@ -13,7 +13,7 @@
 
 | 平台 | 下载 | 环境 |
 | --- | --- | --- |
-| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.1/douyin-follow-manager-0.5.1-windows-x64.zip) · [SHA-256 校验清单](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.1/SHA256SUMS.txt) | Node.js 20 或更高版本、Google Chrome、支持 WPF 的 .NET Framework 4.8 |
+| Windows x64 | [Windows ZIP](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.2/douyin-follow-manager-0.5.2-windows-x64.zip) · [SHA-256 校验清单](https://github.com/ElmaTony/douyin-follow-manager/releases/download/v0.5.2/SHA256SUMS.txt) | Node.js 20 或更高版本、Google Chrome、支持 WPF 的 .NET Framework 4.8 |
 
 ZIP 包含已编译的 `关序.exe`、运行脚本和所需的 Playwright 依赖。完整解压到可写目录后启动。源代码和历史版本可在[发行页](https://github.com/ElmaTony/douyin-follow-manager/releases)查看。
 
@@ -23,7 +23,7 @@ ZIP 包含已编译的 `关序.exe`、运行脚本和所需的 Playwright 依赖
 | --- | --- |
 | 工作台 | 查看最近一次大号关注快照、迁移完成数、受限保留数和自检报告。 |
 | 审阅画廊 | 分别查看低作品账号、停更超过 30 天的账号，以及快照间昵称或内容主题有变化的账号。可查看作品、标为待取关，在画廊内核对并执行。 |
-| 迁移台账 | 搜索账号、筛选待处理记录。迁移会先复核大号关注成功，再处理小号取关，最后核对两端状态。 |
+| 迁移台账 | 搜索账号、筛选待处理记录，异常挂起项可重置重试。迁移会先复核大号关注成功，再处理小号取关，最后核对两端状态。 |
 | 账号操作 | 在本地预览名单，再在线核对；执行取关需要单独确认。登记表按日期对比完整的关注列表，保留名单和异常账号有单独保护。 |
 | 任务记录 | 查看当前任务、逐条输出与失败原因，可中止正在运行的任务。 |
 

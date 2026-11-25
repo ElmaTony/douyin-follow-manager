@@ -7,9 +7,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, '..');
 const step = (s) => {
   console.log(`\n▶ ${s}`);
-  const r = spawnSync(process.execPath, [path.join(HERE, s)], { stdio: 'inherit', cwd: process.cwd() });
+  const r = spawnSync(process.execPath, [path.join(HERE, s)], { stdio: 'inherit', cwd: ROOT, windowsHide: true });
   if (r.status !== 0) { console.error(`✗ ${s} 失败`); process.exit(r.status || 1); }
 };
 step('build_suspects_latest.mjs');

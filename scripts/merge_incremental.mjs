@@ -2,9 +2,10 @@
  * merge_incremental — 增量转移通用合并:
  *  用法: node scripts/merge_incremental.mjs <alt_following导出json>
  *  - 新 sec_uid -> 追加新行 (idx 续排)
- *  - 已知账号但台账 alt_unfollow=done 且现在仍被小号关注 -> 复位(用户重新关注)
+ *  - 已知账号但台账已完成(alt_unfollow=done 等)且现在仍被小号关注 -> 复位(用户重新关注)
  */
 import { loadLedger, saveLedger } from './lib.mjs';
+import { isLedgerDone, readJson } from './core.mjs';
 import fs from 'node:fs';
 
 const IN = process.argv[2];
@@ -17,7 +18,7 @@ const added = [], refollowed = [];
 for (const it of fresh) {
   const known = bySec.get(it.sec_uid);
   if (known) {
-    if (known.alt_unfollow === 'done') {
+    if (isLedgerDone(known)) {
       known.alt_unfollow = '';
       known.alt_unfollow_time = '';
       known.note = '发现小号重新关注, 再次取关';
@@ -39,8 +40,7 @@ for (const it of fresh) {
 saveLedger(rows);
 
 // 登记表比对: 新增候选若命中"已取关登记表", 提醒用户(可能是误关注的从良/低作品号)
-let registry = {};
-try { registry = JSON.parse(fs.readFileSync('data/unfollow_registry.json', 'utf8')).entries || {}; } catch {}
+const registry = readJson('data/unfollow_registry.json')?.entries || {};
 const hits = added.filter((s) => {
   const m = s.match(/#(\d+)/);
   const row = rows.find((r) => r.idx === Number(m?.[1]));

@@ -1,5 +1,25 @@
 # 更新记录 / Changelog
 
+## [v0.5.2](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.2) · 2026-11-25
+
+### 互关兼容、大列表采集与桌面并发
+
+- 支持核对、取关和迁移互相关注（朋友）状态的账号。终验和核对表不再把互关账号误判为异常。
+- 关注列表分页上限随关注总数自动扩展，支持超过 3,000 人的关注采集与登记表刷新。在线采集与主页核验在连续失败过多时保存进度并提前中止，避免无效重试。
+- 统一工作台、迁移驱动与自检对已完成、受限挂起和待处理台账的统计。异常挂起或命中保护名单的记录不再阻塞后续迁移队列，可在「迁移台账 → 重置异常项」重新放回待处理。
+- 同日多次刷新取关登记表会保留当天已见过的关注记录，立即登记当日取关的账号，并在工作台与自检报告提示疑似重新关注的博主。
+- 审阅画廊打开期间，桌面端仍可运行对比快照、本地名单预览、项目自检和刷新数据；中止本地任务不会关掉正在浏览的画廊。
+- 修正停更画廊对无可见日期账号误标「活动分组变化」、灯箱遮挡跨页修改提示及动态冲突计数问题，扩充常见内容转向识别类别，并统一对比报表本地日期、CSV 防公式注入与 Windows 压缩包目录路径格式。
+
+### English
+
+- Verify, unfollow and transfer mutual-follow accounts without false status errors across gallery batches, file imports and final cross-checks.
+- Scale pagination dynamically for accounts following more than 3,000 authors. Online collection and profile verification save progress and stop early after repeated consecutive failures.
+- Align completed, held and pending ledger states across the dashboard, migration driver and diagnostics. Held or protected entries no longer block newer rows and can be queued again with **重置异常项**.
+- Multiple same-day registry refreshes preserve earlier observations so intra-day unfollows are recorded immediately, and suspected re-follows surface in dashboard warnings and self-checks.
+- Keep local actions such as snapshot comparison, list preview, self-check and data refresh available while a review gallery is open. Stopping a local task leaves the open gallery window running.
+- Avoid false inactivity-group change badges when post dates are unavailable, surface cross-tab edit notices inside open dialogs, expand caption-shift categories, use local dates and formula guards in exported reports, and normalize forward-slash paths in the Windows ZIP package.
+
 ## [v0.5.1](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.1) · 2026-11-24
 
 ### 名单核对与中断恢复

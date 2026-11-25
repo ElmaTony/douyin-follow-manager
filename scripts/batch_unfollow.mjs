@@ -1,7 +1,8 @@
 /** Import a decision file. Without --execute this command only reads the live status. */
 import fs from 'node:fs';
+import path from 'node:path';
 import { launch, sleep } from './lib.mjs';
-import { writeJson } from './core.mjs';
+import { reportCsvText, writeJson } from './core.mjs';
 import { loadUnfollowList } from './unfollow_list.mjs';
 import { processUnfollow, verifyMain, readRegistry } from './unfollow-action.mjs';
 
@@ -26,7 +27,7 @@ const EXECUTE = args.includes('--execute');
 const LIMIT = numberOption('--limit', 0);
 
 const STATE = option('--state', 'data/unfollow_state.json');
-const REPORT = option('--report',EXECUTE ? 'data/unfollow_report.csv' : 'data/unfollow_dry_report.csv');
+const REPORT = option('--report', EXECUTE ? 'data/unfollow_report.csv' : 'data/unfollow_dry_report.csv');
 
 if (!LIST) { console.error('用法: node scripts/batch_unfollow.mjs --list <清单csv> [--execute] [--limit N]'); process.exit(1); }
 
@@ -38,33 +39,34 @@ if (args.includes('--preview')) {
   process.exit(0);
 }
 if (!items.length) { console.log('当前名单没有可处理账号'); process.exit(0); }
-if (EXECUTE && items.some(item => !item.nickname || !item.douyin_id)) throw new Error('执行名单中有空的昵称或抖音号');
+if (EXECUTE && items.some((item) => !item.nickname || !item.douyin_id)) throw new Error('执行名单中有空的昵称或抖音号');
 
 function toReportCsv(rows) {
   const cols = ['昵称', '抖音号', 'sec_uid', '结果', '说明'];
-  const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  return '\uFEFF' + [cols.join(','), ...rows.map((r) => [r.nickname, r.douyin_id, r.sec_uid, r.result, r.detail].map(esc).join(','))].join('\r\n');
+  return reportCsvText(cols, rows.map((r) => [r.nickname, r.douyin_id, r.sec_uid, r.result, r.detail]));
 }
 
-
-const state = EXECUTE && fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE,'utf8')) : {done:{},skipped:{},failed:{}};
+const state = EXECUTE && fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : { done: {}, skipped: {}, failed: {} };
 if (EXECUTE) readRegistry();
 const report = [];
-const m = await launch('main',{background:true});
+fs.mkdirSync(path.dirname(REPORT), { recursive: true });
+const m = await launch('main', { background: true });
 try {
   await verifyMain(m.page);
   for (const item of items) {
-    const {code,detail} = await processUnfollow(m.page,item,{execute:EXECUTE});
-    report.push({...item,result:code==='done'?'取关成功':code==='absent'?'本就未关注':detail,detail});
-    fs.writeFileSync(REPORT,toReportCsv(report));
+    const { code, detail } = await processUnfollow(m.page, item, { execute: EXECUTE });
+    report.push({ ...item, result: code === 'done' ? '取关成功' : code === 'absent' ? '本就未关注' : detail, detail });
+    fs.writeFileSync(REPORT, toReportCsv(report), 'utf8');
     if (EXECUTE) {
-      for (const key of ['done','skipped','failed']) delete state[key][item.sec_uid];
-      const key = code==='done'?'done':code==='absent'?'skipped':'failed';
-      state[key][item.sec_uid]=code==='done'?new Date().toISOString():detail;
-      writeJson(STATE,state);
+      for (const key of ['done', 'skipped', 'failed']) delete state[key][item.sec_uid];
+      const key = code === 'done' ? 'done' : code === 'absent' ? 'skipped' : 'failed';
+      state[key][item.sec_uid] = code === 'done' ? new Date().toISOString() : detail;
+      writeJson(STATE, state);
       await sleep(1500);
     }
-    console.log(report.length+'/'+items.length+' '+detail);
-    if (code==='failed') process.exitCode=1;
+    console.log(report.length + '/' + items.length + ' ' + detail);
+    if (code === 'failed') process.exitCode = 1;
   }
-} finally { await m.context.close(); }
+} finally {
+  await m.context.close().catch(() => {});
+}

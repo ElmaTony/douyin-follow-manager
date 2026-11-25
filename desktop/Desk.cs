@@ -21,7 +21,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
-[assembly: AssemblyVersion("0.5.1.0")]
+[assembly: AssemblyVersion("0.5.2.0")]
 [assembly: AssemblyTitle("关序")]
 [assembly: AssemblyProduct("关序")]
 [assembly: AssemblyDescription("关注迁移与审阅工具")]
@@ -30,12 +30,16 @@ namespace FollowDesk {
     public sealed class LedgerRow {
         public int Id {get;set;} public string Name {get;set;} public string Account {get;set;}
         public string Main {get;set;} public string Alt {get;set;} public string Note {get;set;}
-        public bool Pending {get { return Alt!="done" && Main!="skip_restricted"; }}
+        public bool Done { get { return Alt=="done" || ((Main=="done" || Main=="already") && Alt=="skip_not_following"); } }
+        public bool Held { get { return !Done && (Main=="skip_restricted" || Main=="skip_protected" || Main=="skip_unknown" || Main=="id_check_fail" || Alt=="skip_id_fail"); } }
+        public bool Retryable { get { return !Done && (Main=="skip_unknown" || Main=="id_check_fail" || Main=="follow_fail" || Main=="risk_paused" || Alt=="skip_id_fail" || Alt=="unfollow_fail" || Alt=="risk_paused"); } }
+        public bool Pending { get { return !Done && !Held; } }
         public string MainLabel {get {return Main=="done" ? "已关注" : Main=="already" ? "原已关注" : Label(Main);}}
         public string AltLabel {get {return Alt=="done" ? "已取关" : Label(Alt);}}
         static string Label(string s) {
             switch(s) {
                 case "skip_restricted": return "受限保留";
+                case "skip_protected": return "名单拦截";
                 case "skip_not_following": return "已未关注";
                 case "risk_paused": return "已暂停";
                 case "id_check_fail": case "skip_id_fail": return "身份待核对";
@@ -56,15 +60,16 @@ namespace FollowDesk {
     internal sealed class Desk {
         public readonly Window Window;
         readonly string root;
-        readonly TaskRunner runner, reader;
+        readonly TaskRunner runner, reader, galleryRunner;
         readonly ConcurrentQueue<string> lines = new ConcurrentQueue<string>();
         readonly DispatcherTimer timer = new DispatcherTimer { Interval=TimeSpan.FromMilliseconds(120) };
-        readonly List<Button> taskButtons = new List<Button>();
+        readonly List<Button> localButtons = new List<Button>();
+        readonly List<Button> exclusiveButtons = new List<Button>();
         readonly Dictionary<string,string> galleryButtons = new Dictionary<string,string> {{"Review","review"},{"Stale","stale"},{"Suspect","suspect"}};
         Overview data;
-        bool busy, refreshing, stopping, closeRequested;
+        bool busy, refreshing, refreshPending, stopping, galleryOpen, galleryStopping, closeRequested;
         internal Desk(string projectRoot) {
-            root=projectRoot; runner=new TaskRunner(root); reader=new TaskRunner(root);
+            root=projectRoot; runner=new TaskRunner(root); reader=new TaskRunner(root); galleryRunner=new TaskRunner(root);
             using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("FollowDesk.Window")) Window=(Window)XamlReader.Load(stream);
             using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("FollowDesk.Icon")) {
                 var icon=new IconBitmapDecoder(stream,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnLoad);
@@ -84,18 +89,23 @@ namespace FollowDesk {
             }
             foreach(var entry in galleryButtons) {
                 string role=entry.Value;
-                TaskButton(entry.Key,()=>Run("打开审阅画廊","open",role));
+                Get<Button>(entry.Key).Click+=async(s,e)=>{
+                    if(busy || galleryOpen || refreshing) return;
+                    try { await RunGallery("打开审阅画廊",role); } catch(Exception ex) { Message(ex.Message); }
+                };
             }
-            TaskButton("Check",()=>Run("项目自检","check"));
-            TaskButton("Compare",()=>Run("快照变化对比","diff"));
-            TaskButton("Rebuild",()=>Run("重建三个画廊","gallery","all"));
-            TaskButton("Online",()=>Confirm("更新审阅数据？","将使用大号读取关注列表和作品，核验后更新本地快照和三个画廊。关注较多时可能需要较长时间。")
+            LocalButton("Check",()=>Run("项目自检","check"));
+            LocalButton("Compare",()=>Run("快照变化对比","diff"));
+            LocalButton("ResetHeld",()=>Run("重置异常挂起记录","reset-held"));
+            ExclusiveButton("Rebuild",()=>Run("重建三个画廊","gallery","all"));
+            ExclusiveButton("Online",()=>Confirm("更新审阅数据？","将使用大号读取关注列表和作品，核验后更新本地快照和三个画廊。关注较多时可能需要较长时间。")
                 ? Run("在线更新审阅数据","refresh") : Task.FromResult(0));
-            TaskButton("Registry",()=>Run("刷新大号取关登记表","registry"));
-            TaskButton("Transfer",()=>Confirm("开始增量迁移？","将核对当前登录的两个账号，执行大号关注和小号取关。")
+            ExclusiveButton("Registry",()=>Run("刷新大号取关登记表","registry"));
+            ExclusiveButton("Transfer",()=>Confirm("开始增量迁移？","将核对当前登录的两个账号，执行大号关注和小号取关。")
                 ? Run("增量迁移","transfer") : Task.FromResult(0));
-            foreach(var name in new[]{"Preview","Dry","Execute"}) {
-                string action=name; TaskButton(name,()=>ListAction(action));
+            LocalButton("Preview",()=>ListAction("Preview"));
+            foreach(var name in new[]{"Dry","Execute"}) {
+                string action=name; ExclusiveButton(name,()=>ListAction(action));
             }
             Get<Button>("Browse").Click+=(s,e)=>{
                 var dialog=new OpenFileDialog {Filter="决定名单与清单 (*.txt;*.tsv;*.csv)|*.txt;*.tsv;*.csv|所有文件 (*.*)|*.*",CheckFileExists=true};
@@ -117,8 +127,8 @@ namespace FollowDesk {
             Get<CheckBox>("PendingOnly").Unchecked+=(s,e)=>Filter();
             timer.Tick+=(s,e)=>Flush();
             Window.Loaded+=async(s,e)=>{timer.Start(); await Refresh();};
-            Window.Closing+=(s,e)=>{ if(busy) { e.Cancel=true; Stop(true); } };
-            Window.Closed+=(s,e)=>{timer.Stop(); reader.Dispose(); runner.Dispose();};
+            Window.Closing+=(s,e)=>{ if(busy || galleryOpen) { e.Cancel=true; Stop(true); } };
+            Window.Closed+=(s,e)=>{timer.Stop(); reader.Dispose(); runner.Dispose(); galleryRunner.Dispose();};
         }
         [DllImport("dwmapi.dll")]
         static extern int DwmSetWindowAttribute(IntPtr hwnd,int attribute,ref int value,int size);
@@ -194,8 +204,8 @@ namespace FollowDesk {
             }
         }
         void ShowProgress(LedgerRow[] rows) {
-            int completed=rows==null?0:rows.Count(r=>r.Alt=="done");
-            int restricted=rows==null?0:rows.Count(r=>r.Alt!="done" && r.Main=="skip_restricted");
+            int completed=rows==null?0:rows.Count(r=>r.Done);
+            int restricted=rows==null?0:rows.Count(r=>r.Held);
             Get<TextBlock>("CompletedCount").Text=rows==null?"—":completed.ToString("N0");
             Get<TextBlock>("RestrictedLabel").Text="受限保留 "+(rows==null?"—":restricted.ToString());
             Get<TextBlock>("PendingLabel").Text="待处理 "+(rows==null?"—":(rows.Length-completed-restricted).ToString());
@@ -221,9 +231,13 @@ namespace FollowDesk {
         void Page(string name) {
             foreach(var p in new[]{"Home","Ledger","Actions","Log"}) Get<FrameworkElement>(p).Visibility=p==name?Visibility.Visible:Visibility.Collapsed;
         }
-        void TaskButton(string name,Func<Task> action) {
-            var button=Get<Button>(name); taskButtons.Add(button);
+        void LocalButton(string name,Func<Task> action) {
+            var button=Get<Button>(name); localButtons.Add(button);
             button.Click+=async(s,e)=>{ if(busy || refreshing) return; try{await action();}catch(Exception ex){Message(ex.Message);} };
+        }
+        void ExclusiveButton(string name,Func<Task> action) {
+            var button=Get<Button>(name); exclusiveButtons.Add(button);
+            button.Click+=async(s,e)=>{ if(busy || galleryOpen || refreshing) return; try{await action();}catch(Exception ex){Message(ex.Message);} };
         }
         bool Confirm(string title,string detail) {
             return MessageBox.Show(Window,detail,title,MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)==MessageBoxResult.Yes;
@@ -233,32 +247,49 @@ namespace FollowDesk {
             Get<TextBlock>("Status").Text=text;
             string brush=text.Contains("失败")?"Danger":
                 text.Contains("提醒") || text.Contains("中止")?"Caution":
-                busy && text.Contains("运行")?"Accent":"SageInk";
+                (busy || galleryOpen) && text.Contains("运行")?"Accent":"SageInk";
             Get<System.Windows.Shapes.Ellipse>("StatusDot").Fill=(Brush)Window.FindResource(brush);
         }
         void Controls() {
-            foreach(var b in taskButtons) b.IsEnabled=!busy && !refreshing;
+            bool canLocal=!busy && !refreshing;
+            bool canExclusive=canLocal && !galleryOpen;
+            foreach(var b in localButtons) b.IsEnabled=canLocal;
+            foreach(var b in exclusiveButtons) b.IsEnabled=canExclusive;
             var compare=Get<Button>("Compare");
-            compare.IsEnabled=!busy && !refreshing && data!=null && data.canCompare;
+            compare.IsEnabled=canLocal && data!=null && data.canCompare;
             compare.ToolTip=data!=null && data.canCompare ? "对比并保存本轮变化清单" : "完成两次在线更新后可以对比变化";
             var rebuild=Get<Button>("Rebuild");
-            rebuild.IsEnabled=!busy && !refreshing && data!=null && data.snapshot!=null;
+            rebuild.IsEnabled=canExclusive && data!=null && data.snapshot!=null;
             rebuild.ToolTip=data!=null && data.snapshot!=null ? "用已采集的本地数据重建画廊" : "先在线更新一次，生成关注快照";
+            Get<Button>("ResetHeld").IsEnabled=canLocal && data!=null && data.ledger!=null && data.ledger.Any(r=>r.Retryable);
             foreach(var name in galleryButtons.Keys) {
                 int? count=null;
                 if(data!=null && data.galleries!=null) data.galleries.TryGetValue(galleryButtons[name],out count);
-                Get<Button>(name).IsEnabled=!busy && !refreshing && count.HasValue;
+                Get<Button>(name).IsEnabled=canExclusive && count.HasValue;
             }
-            Get<Button>("Stop").IsEnabled=busy && !stopping;
-            Get<Button>("Stop").Visibility=busy?Visibility.Visible:Visibility.Collapsed;
-            Get<Button>("Refresh").IsEnabled=!busy && !refreshing;
+            Get<Button>("Stop").IsEnabled=!stopping && !galleryStopping && (busy || galleryOpen);
+            Get<Button>("Stop").Visibility=(busy || galleryOpen)?Visibility.Visible:Visibility.Collapsed;
+            Get<Button>("Refresh").IsEnabled=canLocal;
         }
         void Stop(bool close) {
-            if(stopping) { if(close) closeRequested=true; return; }
-            if(!Confirm(close?"中止任务并关闭管理台？":"中止当前任务？",
-                "将结束本次任务及其打开的浏览器。已发生的账号操作可能需要重新核对。")) return;
-            stopping=true; closeRequested=close;
-            try {runner.Stop(); Status("正在中止任务…");} catch(Exception ex){stopping=false;closeRequested=false;Message(ex.Message);}
+            bool stopTask=busy && !stopping;
+            bool stopGallery=galleryOpen && !galleryStopping && (close || !busy);
+            if(!stopTask && !stopGallery) { if(close) closeRequested=true; return; }
+            string detail=stopTask && !stopGallery && galleryOpen
+                ? "将结束本次本地任务，已打开的审阅画廊将保持运行。"
+                : "将结束本次任务及其打开的浏览器。已发生的账号操作可能需要重新核对。";
+            if(!Confirm(close?"中止任务并关闭管理台？":"中止当前任务？",detail)) return;
+            closeRequested=closeRequested || close;
+            try {
+                if(stopTask) { stopping=true; runner.Stop(); }
+                if(stopGallery) { galleryStopping=true; galleryRunner.Stop(); }
+                Status("正在中止任务…");
+            } catch(Exception ex) {
+                if(stopTask) stopping=false;
+                if(stopGallery) galleryStopping=false;
+                closeRequested=false;
+                Message(ex.Message);
+            }
             Controls();
         }
         Task ListAction(string action) {
@@ -277,11 +308,34 @@ namespace FollowDesk {
             }
             return Run(action=="Preview"?"本地名单预览":action=="Dry"?"在线核对名单":"执行大号取关",args.ToArray());
         }
+        async Task RunGallery(string title,string role) {
+            if(busy || galleryOpen || refreshing) return;
+            galleryOpen=true; galleryStopping=false; Controls(); Status(title+" · 正在运行");
+            lines.Enqueue(Environment.NewLine+"["+DateTime.Now.ToString("HH:mm:ss")+"] "+title);
+            int warn=0;
+            Action<string> output=line=>{
+                if(line.Contains("[WARN]")) Interlocked.Exchange(ref warn,1);
+                lines.Enqueue(line);
+            };
+            try {
+                int code=await galleryRunner.Run(new[]{"scripts/run.mjs","open",role},output,output);
+                string result=galleryStopping?"已中止":code!=0?"失败（退出码 "+code+"）":warn!=0?"完成，有提醒":"已完成";
+                if(!busy) Status(title+" · "+result);
+                lines.Enqueue(title+" · "+result);
+            } catch(Exception ex) {
+                if(!busy) Status(title+" · 启动或执行失败");
+                lines.Enqueue(ex.Message);
+            } finally {
+                Flush(); galleryOpen=false; galleryStopping=false; Controls();
+            }
+            if(closeRequested) { if(!busy) Window.Close(); }
+            else await Refresh();
+        }
         async Task Run(string title,params string[] args) {
             if(busy || refreshing) return;
             busy=true; stopping=false; Controls(); Status(title+" · 正在运行");
             lines.Enqueue(Environment.NewLine+"["+DateTime.Now.ToString("HH:mm:ss")+"] "+title);
-            if(args[0]!="open") Get<RadioButton>("NavLog").IsChecked=true;
+            if(args.Length==0 || args[0]!="open") Get<RadioButton>("NavLog").IsChecked=true;
             int warn=0;
             Action<string> output=line=>{
                 if(line.Contains("[WARN]")) Interlocked.Exchange(ref warn,1);
@@ -295,7 +349,7 @@ namespace FollowDesk {
             finally {
                 Flush(); busy=false; stopping=false; Controls();
             }
-            if(closeRequested) Window.Close();
+            if(closeRequested) { if(!galleryOpen) Window.Close(); }
             else await Refresh();
         }
         void Flush() {
@@ -303,24 +357,35 @@ namespace FollowDesk {
             var chunk=new StringBuilder(); string line;
             while(chunk.Length<100000 && lines.TryDequeue(out line)) chunk.AppendLine(line);
             var box=Get<TextBox>("Output");
-            if(box.Text.Length>320000) box.Text=box.Text.Substring(box.Text.Length-220000);
+            string current=box.Text;
+            if(current.Length>320000) {
+                int start=current.Length-220000;
+                int nl=current.IndexOf('\n',start);
+                if(nl>=0 && nl+1<current.Length) start=nl+1;
+                else if(start<current.Length && char.IsLowSurrogate(current[start])) start++;
+                box.Text=current.Substring(start);
+            }
             box.AppendText(chunk.ToString()); box.ScrollToEnd();
             Get<TextBlock>("LogEmpty").Visibility=Visibility.Collapsed;
         }
         async Task Refresh() {
-            if(refreshing || busy) return;
-            refreshing=true; Controls();
-            try {
-                var json=new StringBuilder(); var errors=new StringBuilder();
-                int code=await reader.Run(new[]{"desktop/status.mjs"},s=>json.AppendLine(s),s=>errors.AppendLine(s));
-                if(code!=0) throw new IOException(errors.ToString().Trim());
-                data=new JavaScriptSerializer {MaxJsonLength=16000000}.Deserialize<Overview>(json.ToString());
-                if(data==null) throw new IOException("本地数据没有返回结果。");
-                ShowData();
-            } catch(Exception ex) {
-                data=null; ShowData();
-                Get<TextBlock>("Warnings").Text="本地数据读取失败："+ex.Message;
-            } finally {refreshing=false; Controls();}
+            if(busy) return;
+            if(refreshing) { refreshPending=true; return; }
+            do {
+                refreshPending=false;
+                refreshing=true; Controls();
+                try {
+                    var json=new StringBuilder(); var errors=new StringBuilder();
+                    int code=await reader.Run(new[]{"desktop/status.mjs"},s=>json.AppendLine(s),s=>errors.AppendLine(s));
+                    if(code!=0) throw new IOException(errors.ToString().Trim());
+                    data=new JavaScriptSerializer {MaxJsonLength=16000000}.Deserialize<Overview>(json.ToString());
+                    if(data==null) throw new IOException("本地数据没有返回结果。");
+                    ShowData();
+                } catch(Exception ex) {
+                    data=null; ShowData();
+                    Get<TextBlock>("Warnings").Text="本地数据读取失败："+ex.Message;
+                } finally {refreshing=false; Controls();}
+            } while(refreshPending && !busy && !closeRequested);
         }
         void ShowData() {
             ShowProgress(data==null?null:data.ledger);
@@ -368,13 +433,21 @@ namespace FollowDesk {
                 bool first;
                 using(var single=new Mutex(true,@"Local\DouyinFollowDesk-"+id,out first)) {
                     if(!first) {
-                        var self=Process.GetCurrentProcess();
-                        foreach(var other in Process.GetProcessesByName(self.ProcessName)) {
-                            using(other) {
-                                if(other.Id==self.Id || other.MainWindowHandle==IntPtr.Zero) continue;
-                                if(!String.Equals(other.MainModule.FileName,self.MainModule.FileName,StringComparison.OrdinalIgnoreCase)) continue;
-                                if(IsIconic(other.MainWindowHandle)) ShowWindow(other.MainWindowHandle,9);
-                                SetForegroundWindow(other.MainWindowHandle); break;
+                        using(var self=Process.GetCurrentProcess()) {
+                            string selfFile=self.MainModule.FileName;
+                            foreach(var other in Process.GetProcessesByName(self.ProcessName)) {
+                                using(other) {
+                                    try {
+                                        if(other.Id==self.Id || other.MainWindowHandle==IntPtr.Zero) continue;
+                                        if(!String.Equals(other.MainModule.FileName,selfFile,StringComparison.OrdinalIgnoreCase)) continue;
+                                        if(IsIconic(other.MainWindowHandle)) ShowWindow(other.MainWindowHandle,9);
+                                        SetForegroundWindow(other.MainWindowHandle); break;
+                                    } catch(Win32Exception) {
+                                        continue;
+                                    } catch(InvalidOperationException) {
+                                        continue;
+                                    }
+                                }
                             }
                         } return;
                     }

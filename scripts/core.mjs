@@ -1,20 +1,40 @@
 /**
  * core.mjs — 共享纯工具（无浏览器依赖）
- *  · JSON 读写(原子写)
- *  · CSV 解析/转义/生成
+ *  · JSON 读写(原子写 + Windows 退避重试)
+ *  · CSV 解析/转义/生成 + 报表防公式注入
+ *  · 关注状态与台账状态枚举判定
  *  · 发布时间分级(90天+ / 30-90天 / 30天内)
  */
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+
+const RETRY_WAIT_BUF = new Int32Array(new SharedArrayBuffer(4));
 
 export const readJson = (p, fallback = null) => {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
 };
 
-export const writeJson = (p, obj) => {
-  const tmp = p + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(obj, null, 1), 'utf8');
-  fs.renameSync(tmp, p);
+export const writeJson = (p, obj, space = 1) => {
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  const tmp = `${p}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(obj, null, space), 'utf8');
+    for (let attempt = 0; ; attempt++) {
+      try {
+        fs.renameSync(tmp, p);
+        break;
+      } catch (err) {
+        if ((err?.code === 'EPERM' || err?.code === 'EACCES') && attempt < 3) {
+          Atomics.wait(RETRY_WAIT_BUF, 0, 0, 40);
+          continue;
+        }
+        throw err;
+      }
+    }
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
 };
 
 /** 支持引号包裹/内嵌逗号/换行的 CSV 解析 */
@@ -44,7 +64,32 @@ export const escCsv = (v) => {
 };
 
 export const csvText = (cols, rows, bom = true) =>
-  (bom ? '\uFEFF' : '') + [cols.join(','), ...rows.map((r) => r.map(escCsv).join(','))].join('\r\n');
+  (bom ? '\uFEFF' : '') + [cols.map(escCsv).join(','), ...rows.map((r) => r.map(escCsv).join(','))].join('\r\n');
+
+export const escReportCsv = (v) => {
+  let s = v == null ? '' : String(v).replace(/[\r\n\t]+/g, ' ');
+  if (/^\s*[=+@-]/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+
+export const reportCsvText = (cols, rows, bom = true) =>
+  (bom ? '\uFEFF' : '') + [cols.map(escReportCsv).join(','), ...rows.map((r) => r.map(escReportCsv).join(','))].join('\r\n');
+
+export const isFollowingStatus = (s) => s === 1 || s === 2;
+export const RETRYABLE_HELD_MAIN = ['skip_unknown', 'id_check_fail'];
+export const HELD_MAIN = ['skip_restricted', 'skip_protected', ...RETRYABLE_HELD_MAIN];
+export const isLedgerDone = (r) =>
+  r?.alt_unfollow === 'done' ||
+  ((r?.main_follow === 'done' || r?.main_follow === 'already') && r?.alt_unfollow === 'skip_not_following');
+export const isLedgerHeld = (r) =>
+  !isLedgerDone(r) && (HELD_MAIN.includes(r?.main_follow) || r?.alt_unfollow === 'skip_id_fail');
+export const isLedgerRetryable = (r) =>
+  !isLedgerDone(r) &&
+  (RETRYABLE_HELD_MAIN.includes(r?.main_follow) ||
+    r?.alt_unfollow === 'skip_id_fail' ||
+    ['follow_fail', 'risk_paused'].includes(r?.main_follow) ||
+    ['unfollow_fail', 'risk_paused'].includes(r?.alt_unfollow));
+export const isLedgerPending = (r) => !isLedgerDone(r) && !isLedgerHeld(r);
 
 /** 由发布时间数组得出最近更新/停更天数/分级 */
 export function visibleTimes(account) {
