@@ -14,7 +14,7 @@ const galleryUrl = pathToFileURL(galleryFile).href;
 
 const payload = galleryPayload(fs.readFileSync(galleryFile, 'utf8'));
 const data = reviewableRows(payload);
-const m = await launch('main');
+const m = await launch('main', { background: true });
 let saved;
 try {
   await m.page.goto(galleryUrl, { waitUntil: 'domcontentloaded' });

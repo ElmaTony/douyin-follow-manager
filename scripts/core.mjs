@@ -15,11 +15,11 @@ export const readJson = (p, fallback = null) => {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
 };
 
-export const writeJson = (p, obj, space = 1) => {
+export function writeTextAtomic(p, text) {
   fs.mkdirSync(path.dirname(p), { recursive: true });
   const tmp = `${p}.${randomUUID()}.tmp`;
   try {
-    fs.writeFileSync(tmp, JSON.stringify(obj, null, space), 'utf8');
+    fs.writeFileSync(tmp, text, 'utf8');
     for (let attempt = 0; ; attempt++) {
       try {
         fs.renameSync(tmp, p);
@@ -35,7 +35,15 @@ export const writeJson = (p, obj, space = 1) => {
   } finally {
     fs.rmSync(tmp, { force: true });
   }
-};
+}
+
+export const writeJson = (p, obj, space = 1) => writeTextAtomic(p, JSON.stringify(obj, null, space));
+
+export const shanghaiDate = (date = new Date()) =>
+  new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(date);
+
+export const localTimeStr = (date = new Date()) =>
+  new Intl.DateTimeFormat('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(date);
 
 /** 支持引号包裹/内嵌逗号/换行的 CSV 解析 */
 export function parseCsv(text) {
@@ -88,7 +96,8 @@ export const isLedgerRetryable = (r) =>
   (RETRYABLE_HELD_MAIN.includes(r?.main_follow) ||
     r?.alt_unfollow === 'skip_id_fail' ||
     ['follow_fail', 'risk_paused'].includes(r?.main_follow) ||
-    ['unfollow_fail', 'risk_paused'].includes(r?.alt_unfollow));
+    ['unfollow_fail', 'risk_paused'].includes(r?.alt_unfollow) ||
+    (!isLedgerHeld(r) && ((r?.fail_count || 0) > 0 || (r?.alt_fail_count || 0) > 0)));
 export const isLedgerPending = (r) => !isLedgerDone(r) && !isLedgerHeld(r);
 
 /** 由发布时间数组得出最近更新/停更天数/分级 */

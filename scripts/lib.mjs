@@ -2,7 +2,7 @@ import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { reportCsvText, writeJson } from './core.mjs';
+import { localTimeStr, reportCsvText, writeJson, writeTextAtomic } from './core.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const PROJ = path.resolve(__dirname, '..');
@@ -23,7 +23,7 @@ export const ACCOUNTS = ['alt', 'main'];
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-export const nowStr = () => new Date().toTimeString().slice(0, 8);
+export const nowStr = () => localTimeStr();
 
 export function log(msg) {
   const line = `[${nowStr()}] ${msg}`;
@@ -60,35 +60,6 @@ export async function launch(which, { background = process.env.GUANXU_BACKGROUND
   return { context, page };
 }
 
-/** 风控关键词。命中即暂停, 交人工处理。 */
-const RISK_PATTERNS = [
-  '操作频繁',
-  '稍后再试',
-  '请稍后',
-  '验证',
-  '滑块',
-  '安全验证',
-  '关注失败',
-  '请求过于频繁',
-  '已触发',
-  '限制',
-];
-
-export async function detectRisk(page) {
-  try {
-    const text = await page.evaluate(() => document.body?.innerText || '');
-    const hit = RISK_PATTERNS.filter((p) => text.includes(p));
-    return { risky: hit.length > 0, hits: hit, snippet: text.replace(/\s+/g, ' ').slice(0, 200) };
-  } catch {
-    return { risky: false, hits: [], snippet: '' };
-  }
-}
-
-export async function isLoggedIn(context) {
-  const cookies = await context.cookies();
-  return cookies.some((c) => c.name === 'sessionid' || c.name === 'sessionid_ss');
-}
-
 // ---- 台账 ----
 const LEDGER = path.join(DATA, 'ledger.json');
 
@@ -117,7 +88,6 @@ export function toCsv(rows, file) {
     'alt_unfollow_time',
     'note',
   ];
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, reportCsvText(cols, rows.map((r) => cols.map((c) => r[c]))), 'utf8');
+  writeTextAtomic(file, reportCsvText(cols, rows.map((r) => cols.map((c) => r[c]))));
   return file;
 }

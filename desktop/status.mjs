@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { galleryPayload } from '../scripts/core.mjs';
+import { galleryPayload, isLedgerDone, isLedgerHeld, isLedgerPending, isLedgerRetryable } from '../scripts/core.mjs';
 
 import { binding, initialize } from '../scripts/local-state.mjs';
 
@@ -17,6 +17,7 @@ function read(label, fn) {
 }
 const ledger = read('迁移台账', () => json('ledger.json').map(r => ({
   Id:r.idx, Name:r.nickname, Account:r.douyin_id, Main:r.main_follow || '', Alt:r.alt_unfollow || '', Note:r.note || '',
+  Done: isLedgerDone(r), Held: isLedgerHeld(r), Retryable: isLedgerRetryable(r), Pending: isLedgerPending(r),
 })));
 const snapshot = !fs.existsSync(path.join(dir,'snapshot_latest.json')) ? null : read('关注快照', () => {
   const s = json('snapshot_latest.json');
@@ -44,9 +45,18 @@ if (snapshot && !pending && fs.existsSync(path.join(dir,'snapshot_previous.json'
       Date.parse(previous.exported_at) < Date.parse(snapshot.date);
   }));
 }
+function readGalleryCount(filePath) {
+  const buf = Buffer.alloc(1024);
+  const fd = fs.openSync(filePath, 'r');
+  let n = 0;
+  try { n = fs.readSync(fd, buf, 0, buf.length, 0); } finally { fs.closeSync(fd); }
+  const match = buf.toString('utf8', 0, n).match(/<meta name="guanxu-count" content="(\d+)">/);
+  if (match) return Number(match[1]);
+  return galleryPayload(fs.readFileSync(filePath, 'utf8')).data.length;
+}
 const galleries = {};
 for (const n of ['review','stale','suspect']) galleries[n] = pending || !fs.existsSync(path.join(dir,n+'_gallery.html')) ? null : read(n+'_gallery', () =>
-  galleryPayload(fs.readFileSync(path.join(dir,n+'_gallery.html'),'utf8')).data.length);
+  readGalleryCount(path.join(dir,n+'_gallery.html')));
 const report = read('最近自检', () => {
   const p = path.join(dir,'doctor_report.txt');
   if (!fs.existsSync(p)) return '尚未运行';

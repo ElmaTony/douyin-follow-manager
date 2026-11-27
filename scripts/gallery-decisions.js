@@ -6,7 +6,10 @@ let legacyRecords = [];
 const decided = mark => mark === 'keep' || mark === 'unf';
 function readLegacy() {
   const result = Object.create(null);
-  legacyRecords = legacyKeys.map(key=>JSON.parse(localStorage.getItem(key)) || {});
+  legacyRecords = legacyKeys.map(key => {
+    try { return JSON.parse(localStorage.getItem(key)) || {}; }
+    catch { return {}; }
+  });
   for (const records of legacyRecords) {
     for (const [sec,mark] of Object.entries(records)) {
       if (!decided(mark)) continue;
@@ -20,7 +23,12 @@ function conflictDetail(sec) {
     [legacyNames[i]+'：'+(records[sec]==='keep'?'保留':'取关')] : []).join('，');
 }
 function recordFor(sec) {
-  return JSON.parse(localStorage.getItem(decisionPrefix+sec));
+  try {
+    const r = JSON.parse(localStorage.getItem(decisionPrefix+sec));
+    return r && typeof r === 'object' ? r : null;
+  } catch {
+    return null;
+  }
 }
 function readMarks(ids=union.map(d=>d.sec_uid)) {
   const marks = Object.create(null);

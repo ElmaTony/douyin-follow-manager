@@ -43,7 +43,7 @@ for (const [sec, a] of Object.entries(snap.accounts)) {
     content_shift: contentShift,
   });
 }
-out.sort((x, y) => (x.tier === 'high' ? 0 : 1) - (y.tier === 'high' ? 0 : 1) || y.followers - x.followers);
+out.sort((x, y) => (x.tier === 'high' ? 0 : 1) - (y.tier === 'high' ? 0 : 1) || (y.followers ?? 0) - (x.followers ?? 0));
 writeJson('data/suspects_latest.json', out);
 const high = out.filter((x) => x.tier === 'high').length;
 console.log('改名或内容变化：' + out.length + ' 个账号，其中两项都有变化 ' + high + ' 个。');

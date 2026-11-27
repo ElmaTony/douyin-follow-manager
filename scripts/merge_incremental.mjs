@@ -13,16 +13,26 @@ if (!IN) { console.error('用法: node scripts/merge_incremental.mjs <导出json
 const fresh = JSON.parse(fs.readFileSync(IN, 'utf8')).list;
 const rows = loadLedger();
 const bySec = new Map(rows.map((r) => [r.sec_uid, r]));
+const registry = readJson('data/unfollow_registry.json')?.entries || {};
 let nextIdx = Math.max(0, ...rows.map((r) => r.idx)) + 1;
-const added = [], refollowed = [];
+const addedRows = [], refollowedRows = [];
 for (const it of fresh) {
   const known = bySec.get(it.sec_uid);
   if (known) {
+    if (it.nickname) known.nickname = it.nickname;
+    const latestId = it.unique_id || it.short_id;
+    if (latestId) known.douyin_id = latestId;
+    if (it.short_id && !known.legacy_short_id) known.legacy_short_id = it.short_id;
+    if (it.follower_count != null) known.follower_count = it.follower_count;
+    if (it.signature != null) known.signature = it.signature;
     if (isLedgerDone(known)) {
       known.alt_unfollow = '';
       known.alt_unfollow_time = '';
-      known.note = '发现小号重新关注, 再次取关';
-      refollowed.push(`#${known.idx} ${known.nickname}(${known.douyin_id})`);
+      known.alt_fail_count = 0;
+      known.note = Object.hasOwn(registry, known.sec_uid)
+        ? '发现小号重新关注(曾在大号取关登记)'
+        : '发现小号重新关注, 再次核对转移';
+      refollowedRows.push(known);
     }
     continue;
   }
@@ -35,30 +45,23 @@ for (const it of fresh) {
   };
   rows.push(row);
   bySec.set(it.sec_uid, row);
-  added.push(`#${nextIdx - 1} ${it.nickname}(${it.unique_id || it.short_id})`);
+  addedRows.push(row);
 }
 saveLedger(rows);
 
-// 登记表比对: 新增候选若命中"已取关登记表", 提醒用户(可能是误关注的从良/低作品号)
-const registry = readJson('data/unfollow_registry.json')?.entries || {};
-const hits = added.filter((s) => {
-  const m = s.match(/#(\d+)/);
-  const row = rows.find((r) => r.idx === Number(m?.[1]));
-  return row && registry[row.sec_uid];
-});
+// 登记表比对: 新增或小号重关候选若命中"已取关登记表", 提醒用户
+const hits = [...addedRows, ...refollowedRows].filter((r) => Object.hasOwn(registry, r.sec_uid));
 if (hits.length) {
-  console.log(`⚠️ 命中已取关登记表 ${hits.length} 人 (确认无误再执行转移):`);
-  for (const s of hits) {
-    const m = s.match(/#(\d+)/);
-    const row = rows.find((r) => r.idx === Number(m?.[1]));
+  console.log(`[WARN] ⚠️ 命中已取关登记表 ${hits.length} 人 (迁移时大号将自动拦截重新关注):`);
+  for (const row of hits) {
     const e = registry[row.sec_uid];
-    console.log(`  ⚠️ ${s} | ${e.unfollowed_since} 取关过 (${e.reason})`);
+    console.log(`  ⚠️ #${row.idx} ${row.nickname}(${row.douyin_id}) | ${e.unfollowed_since} 取关过 (${e.reason})`);
   }
 }
 
 console.log(`小号当前关注: ${fresh.length} 人`);
-console.log(`新增待转移: ${added.length} 个`);
-added.forEach((s) => console.log('  + ' + s));
-console.log(`重新关注(只需再取关): ${refollowed.length} 个`);
-refollowed.forEach((s) => console.log('  ↻ ' + s));
+console.log(`新增待转移: ${addedRows.length} 个`);
+addedRows.forEach((r) => console.log(`  + #${r.idx} ${r.nickname}(${r.douyin_id})`));
+console.log(`重新关注(只需再取关): ${refollowedRows.length} 个`);
+refollowedRows.forEach((r) => console.log(`  ↻ #${r.idx} ${r.nickname}(${r.douyin_id})`));
 console.log(`台账总数: ${rows.length}`);

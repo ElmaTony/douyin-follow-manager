@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -78,18 +79,46 @@ namespace FollowDesk {
             yield return CombineDir(local, @"Programs\nodejs");
             yield return CombineDir(roaming, "nvm");
         }
+        static bool IsSupportedNode(string exe) {
+            try {
+                var info = new ProcessStartInfo(exe, "-p \"process.versions.node\"") {
+                    UseShellExecute = false, CreateNoWindow = true,
+                    RedirectStandardOutput = true, RedirectStandardError = true,
+                    StandardOutputEncoding = Encoding.UTF8
+                };
+                using (var proc = Process.Start(info)) {
+                    if (proc == null) return false;
+                    string ver = proc.StandardOutput.ReadToEnd().Trim();
+                    if (!proc.WaitForExit(3000)) {
+                        try { proc.Kill(); } catch { }
+                        return false;
+                    }
+                    if (proc.ExitCode != 0 || String.IsNullOrEmpty(ver)) return false;
+                    int dot = ver.IndexOf('.');
+                    string majorText = dot > 0 ? ver.Substring(0, dot) : ver;
+                    int major;
+                    return int.TryParse(majorText, NumberStyles.Integer, CultureInfo.InvariantCulture, out major) && major >= 20;
+                }
+            } catch {
+                return false;
+            }
+        }
         static string NodePath() {
             string hit = cachedNode;
             if (!String.IsNullOrEmpty(hit) && File.Exists(hit)) return hit;
+            bool foundLegacy = false;
             foreach (var dir in CandidateDirs()) {
                 if (String.IsNullOrWhiteSpace(dir)) continue;
                 string d = dir.Trim().Trim('"');
                 try {
                     if (!Path.IsPathRooted(d)) continue;
                     var file = Path.Combine(d, "node.exe");
-                    if (File.Exists(file)) { cachedNode = file; return file; }
+                    if (!File.Exists(file)) continue;
+                    if (IsSupportedNode(file)) { cachedNode = file; return file; }
+                    foundLegacy = true;
                 } catch (ArgumentException) { continue; }
             }
+            if (foundLegacy) throw new InvalidOperationException("检测到旧版 Node.js，关序需要 Node.js 20 或更高版本。");
             throw new FileNotFoundException("找不到 Node.js。请检查本机的 Node.js 安装和 PATH。");
         }
         static string Quote(string value) {
@@ -129,7 +158,8 @@ namespace FollowDesk {
             }
         }
         public void Stop() {
-            if (job != null && !ChildJob.TerminateJobObject(job,1223)) throw new System.ComponentModel.Win32Exception();
+            ChildJob current = job;
+            if (current != null && !ChildJob.TerminateJobObject(current,1223) && job != null) throw new System.ComponentModel.Win32Exception();
         }
         public void Dispose() { if (job != null) job.Dispose(); }
     }

@@ -1,8 +1,7 @@
 /** Compare two complete samples by the platform's stable account identifier. */
 import fs from 'node:fs';
 import path from 'node:path';
-import { localDate, reportCsvText, tierOf, visibleTimes } from './core.mjs';
-import { randomUUID } from 'node:crypto';
+import { localDate, reportCsvText, tierOf, visibleTimes, writeTextAtomic } from './core.mjs';
 
 function load(file) {
   if (!fs.existsSync(file)) throw new Error('需要两次完整的关注快照才能对比。');
@@ -59,26 +58,7 @@ for (const sec of new Set([...Object.keys(latest.accounts), ...Object.keys(old.a
   ]);
 }
 const target = path.resolve('data/snapshot_changes.csv');
-fs.mkdirSync(path.dirname(target), { recursive: true });
-const temp = target + '.' + randomUUID() + '.tmp';
-const waitBuf = new Int32Array(new SharedArrayBuffer(4));
-try {
-  fs.writeFileSync(temp, reportCsvText(cols, rows), 'utf8');
-  for (let attempt = 0; ; attempt++) {
-    try {
-      fs.renameSync(temp, target);
-      break;
-    } catch (err) {
-      if ((err?.code === 'EPERM' || err?.code === 'EACCES') && attempt < 3) {
-        Atomics.wait(waitBuf, 0, 0, 40);
-        continue;
-      }
-      throw err;
-    }
-  }
-} finally {
-  fs.rmSync(temp, { force: true });
-}
+writeTextAtomic(target, reportCsvText(cols, rows));
 console.log(old.exported_at + ' → ' + latest.exported_at);
 console.log('关注数 ' + Object.keys(old.accounts).length + ' → ' + Object.keys(latest.accounts).length);
 console.log(Object.entries(counts).map(([label, n]) => label + ' ' + n).join('　'));

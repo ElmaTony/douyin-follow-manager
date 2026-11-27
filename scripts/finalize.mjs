@@ -1,6 +1,6 @@
 /** 根据最终复核结果输出台账与逐条对照表。 */
 import { loadLedger, toCsv } from './lib.mjs';
-import { isFollowingStatus, reportCsvText } from './core.mjs';
+import { isFollowingStatus, reportCsvText, writeTextAtomic } from './core.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,10 @@ for (const r of rows) {
     concl = `保留小号(大号未关注: ${why})`;
     kept++;
     keptBreakdown[r.main_follow] = (keptBreakdown[r.main_follow] || 0) + 1;
+  } else if (v?.deleted || (mStat === 0 && aStat === 0 && r.main_follow === 'skip_restricted')) {
+    concl = '受限跳过(账号已注销或双方均未关注)';
+    kept++;
+    keptBreakdown[r.main_follow] = (keptBreakdown[r.main_follow] || 0) + 1;
   } else if (isFollowingStatus(mStat) && isFollowingStatus(aStat)) {
     concl = '⚠ 异常: 大号已关注但小号未取关';
     mismatch++;
@@ -52,7 +56,7 @@ for (const r of rows) {
   }
   csvRows.push([r.idx, r.nickname, r.douyin_id, r.main_follow || '', r.alt_unfollow || '', mStat, aStat, concl]);
 }
-fs.writeFileSync(path.join(dataDir, 'crosscheck.csv'), reportCsvText(cols, csvRows), 'utf8');
+writeTextAtomic(path.join(dataDir, 'crosscheck.csv'), reportCsvText(cols, csvRows));
 
 console.log('\n===== 终态统计 =====');
 console.log(`总记录: ${rows.length}`);

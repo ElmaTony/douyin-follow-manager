@@ -25,7 +25,7 @@ const IDS = (args.find((a) => a.startsWith('--ids=')) || '').replace('--ids=', '
 let todo;
 if (IDS) {
   const idSet = new Set(IDS.split(',').map((s) => s.trim()).filter(Boolean));
-  todo = rows.filter((r) => idSet.has(String(r.idx)) && r.alt_unfollow !== 'done' && r.main_follow !== 'skip_restricted');
+  todo = rows.filter((r) => idSet.has(String(r.idx)) && isLedgerPending(r));
 } else {
   todo = rows.filter(isLedgerPending);
 }
@@ -44,21 +44,36 @@ async function openProfile(ctx, secUid) {
   await waitProfileHydrated(ctx.page, { fallbackMs: randInt(3000, 5000) });
   if (typeof ctx.page?.waitForFunction === 'function') await sleep(randInt(1000, 2200));
 }
+const norm = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 async function verifyIdentity(page, t) {
   const info = await page.evaluate(() => {
-    const pathSec = (location.pathname.split('/user/')[1] || '').split('?')[0];
+    const pathSec = (location.pathname.split('/user/')[1] || '').split('?')[0].replace(/\/$/, '');
     const m = document.body?.innerText?.match(/抖音号[:：]\s*([^\s]+)/);
     return { pathSec, pageId: m ? m[1] : null, title: document.title };
   });
   const secOk = info.pathSec === t.sec_uid;
   const idOk = !!info.pageId && (info.pageId === t.douyin_id || info.pageId === t.legacy_short_id);
-  const nameOk = Boolean(t.nickname) && info.title.includes(t.nickname);
+  const nameOk = Boolean(norm(t.nickname)) && norm(info.title).includes(norm(t.nickname));
   return { secOk, idOk, nameOk, info };
 }
 async function readStatus(page, secUid) {
   const response = await fetchProfileOther(page, secUid, COMMON);
   confirmedStatus(response, secUid);
   return response;
+}
+async function confirmRenamedStatus(page, t, idCheck) {
+  if (!idCheck.secOk || !idCheck.idOk || idCheck.nameOk) return null;
+  const profile = await readStatus(page, t.sec_uid);
+  const idMatch =
+    (t.douyin_id && (profile.unique_id === t.douyin_id || profile.short_id === t.douyin_id)) ||
+    (t.legacy_short_id && profile.short_id === t.legacy_short_id);
+  if (profile.sec_uid === t.sec_uid && idMatch && profile.nickname) {
+    log(`昵称已更新: ${t.nickname} -> ${profile.nickname}`);
+    t.nickname = profile.nickname;
+    idCheck.nameOk = true;
+    return profile;
+  }
+  return null;
 }
 async function clickFollow(page) {
   return page.evaluate((sel) => {
@@ -70,12 +85,25 @@ async function clickFollow(page) {
 }
 async function clickConfirm(page) {
   return page.evaluate(() => {
-    const labels = ['确认', '确定', '仍然取消关注', '取消关注', '确认取消关注'];
-    const btns = [...document.querySelectorAll('button, [role="button"]')].filter((b) => {
-      const tx = (b.textContent || '').trim(); const r = b.getBoundingClientRect();
-      return labels.includes(tx) && r.width > 0 && r.height > 0;
+    const isVisible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const dialogLabels = ['确认', '确定', '仍然取消关注', '取消关注', '确认取消关注'];
+    const dialogs = [...document.querySelectorAll('[role="dialog"], dialog[open], [class*="modal"], [class*="Dialog"]')].filter(isVisible);
+    for (const dlg of dialogs) {
+      const btns = [...dlg.querySelectorAll('button, [role="button"]')].filter((b) => {
+        const tx = (b.textContent || '').trim();
+        return dialogLabels.includes(tx) && isVisible(b);
+      });
+      if (btns.length) { btns[btns.length - 1].click(); return (btns[btns.length - 1].textContent || '').trim(); }
+    }
+    const explicitLabels = ['仍然取消关注', '确认取消关注'];
+    const explicitBtns = [...document.querySelectorAll('button, [role="button"]')].filter((b) => {
+      const tx = (b.textContent || '').trim();
+      return explicitLabels.includes(tx) && isVisible(b);
     });
-    if (btns.length) { btns[btns.length - 1].click(); return (btns[btns.length - 1].textContent || '').trim(); }
+    if (explicitBtns.length) {
+      explicitBtns[explicitBtns.length - 1].click();
+      return (explicitBtns[explicitBtns.length - 1].textContent || '').trim();
+    }
     return null;
   });
 }
@@ -124,6 +152,7 @@ try {
       // ---- MAIN: 大号关注 ----
       await openProfile(m, t.sec_uid);
       const idM = await verifyIdentity(m.page, t);
+      let sM = await confirmRenamedStatus(m.page, t, idM);
       if (!idM.secOk || !idM.idOk || !idM.nameOk) {
         // 账号可能已注销/不存在 -> 页面无昵称/抖音号; 抓页面文本判定后永久跳过
         const pg = await m.page.evaluate(() => document.body?.innerText || '').catch(() => '');
@@ -141,15 +170,14 @@ try {
         saveLedger(rows);
         continue;
       }
-      const sM = await readStatus(m.page, t.sec_uid);
+      if (!sM) sM = await readStatus(m.page, t.sec_uid);
       if (sM.follow_status === 0) {
         if (Object.hasOwn(registry, t.sec_uid) || keepIds.has(t.sec_uid)) {
           t.main_follow = 'skip_protected';
           t.note = '目标在已取关登记表或保留名单中，已停止重新关注';
           saveLedger(rows);
-          console.error('目标在已取关登记表或保留名单中，已停止重新关注');
-          process.exitCode = 1;
-          break;
+          console.error('[WARN] 目标在已取关登记表或保留名单中，已停止重新关注: ' + t.nickname);
+          continue;
         }
         if (UNFOLLOW_ONLY) {
           log(`[unfollow-only] ${t.nickname} 大号未关注, 跳过(待冷却后关注)`);
@@ -213,6 +241,7 @@ try {
       if (t.main_follow === 'done' || t.main_follow === 'already') {
         await openProfile(a, t.sec_uid);
         const idA = await verifyIdentity(a.page, t);
+        let sA = await confirmRenamedStatus(a.page, t, idA);
         if (!idA.secOk || !idA.idOk || !idA.nameOk) {
           log(`!! 小号身份核对失败: ${JSON.stringify(idA.info)} 跳过取关`);
           t.alt_fail_count = (t.alt_fail_count || 0) + 1;
@@ -221,7 +250,7 @@ try {
           saveLedger(rows);
           continue;
         }
-        const sA = await readStatus(a.page, t.sec_uid);
+        if (!sA) sA = await readStatus(a.page, t.sec_uid);
         if (isFollowingStatus(sA.follow_status)) {
           const c = await clickFollow(a.page);
           log(`小号点取关 => ${c}`);

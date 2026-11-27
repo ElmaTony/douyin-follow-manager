@@ -17,7 +17,7 @@ function effectiveMark(sec,stored) {
   return stored==='none' ? '' : stored || (preset.has(sec) ? 'keep' : '');
 }
 const markOf = sec => effectiveMark(sec,state[sec]);
-let linkedAccount = false;
+let linkedAccount = false, linkedAccountId = '';
 let cursor = 0;
 try {
   const revisionKey = ROWKEY + ':snapshot';
@@ -83,9 +83,18 @@ window.addEventListener('pagehide',rememberPosition);
 const searchText = new Map(DATA.map(d => [d.sec_uid, [
   d.sec_uid, d.nickname, d.previousName, d.douyin_id, ...(d.posts || []).map(p=>p.caption), ...(d.captions || []), ...(d.extraLines || []).map(line => line.text)
 ].filter(Boolean).join(' ').normalize('NFKC').toLowerCase()]));
-function clearAccountLink() {
+function clearAccountLink({ keepSearch = false } = {}) {
   if (!linkedAccount) return;
+  if (!keepSearch && $('search').value === linkedAccountId) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(viewKey));
+      $('search').value = typeof saved?.search === 'string' ? saved.search : '';
+    } catch {
+      $('search').value = '';
+    }
+  }
   linkedAccount = false;
+  linkedAccountId = '';
   $('returnToList').hidden = true;
   $('backToSource').hidden = true;
   $('linkNotice').hidden = true;
@@ -93,9 +102,9 @@ function clearAccountLink() {
   url.hash = '';
   history.replaceState(history.state,'',url);
 }
-function changeView() {
+function changeView({ keepSearch = false } = {}) {
   replayBatch = false;
-  clearAccountLink();
+  clearAccountLink({ keepSearch });
   setCursor(0);
   try { localStorage.setItem(viewKey, JSON.stringify({
     filter, changedOnly: $('changedOnly').checked, multiOnly: $('multiOnly').checked, sortOrder: $('sortOrder').value, markFilter: $('markFilter').value, search: $('search').value
@@ -392,7 +401,7 @@ $('conflicts').addEventListener('click',()=>{
   filter='all'; $('search').value=''; $('multiOnly').checked=$('changedOnly').checked=false;
   $('markFilter').value='conflict'; changeView();
 });
-$('search').addEventListener('input', changeView);
+$('search').addEventListener('input', () => changeView({ keepSearch: true }));
 $('sortOrder').addEventListener('change', changeView);
 $('markFilter').addEventListener('change', changeView);
 $('multiOnly').addEventListener('change', changeView);
@@ -401,6 +410,7 @@ function followAccountLink() {
   const params = new URLSearchParams(location.hash.slice(1));
   const id = params.get('account');
   linkedAccount = Boolean(id);
+  linkedAccountId = id || '';
   const notice=$('linkNotice');
   notice.hidden = !linkedAccount || !params.get('at') || params.get('at')===snapshotAt;
   if (!notice.hidden) notice.textContent='来源画廊和本页的快照时间不同，请以本页显示的数据日期为准。';

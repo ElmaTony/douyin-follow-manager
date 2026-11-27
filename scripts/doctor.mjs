@@ -10,7 +10,7 @@ import { binding, initialize } from './local-state.mjs';
 initialize();
 import { CHROME, PROJ, DATA } from './lib.mjs';
 
-import { galleryPayload, isLedgerHeld, isLedgerPending, parseCsv, snapshotTime, staleAtSnapshot } from './core.mjs';
+import { galleryPayload, isLedgerHeld, isLedgerPending, parseCsv, snapshotTime, staleAtSnapshot, writeTextAtomic } from './core.mjs';
 
 const results = [];
 const add = (level, name, detail) => results.push({ level, name, detail });
@@ -18,7 +18,8 @@ const j = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch 
 
 // ---------- 1. 环境 ----------
 add(fs.existsSync(CHROME) ? 'PASS' : 'FAIL', 'Chrome 可执行', CHROME);
-add(/v(\d+)/.test(process.version) ? 'PASS' : 'FAIL', 'Node 运行时', process.version);
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+add(nodeMajor >= 20 ? 'PASS' : 'FAIL', 'Node 运行时', `${process.version} (要求 >=20)`);
 for (const a of ['main', 'alt']) {
   const p = path.join(PROJ, 'profiles', a);
   add(binding(a) && fs.existsSync(p) ? 'PASS' : 'WARN', a + ' 账号绑定', binding(a) ? '已绑定' : '请先运行账号设置');
@@ -102,10 +103,12 @@ for (const f of ['crosscheck.csv', 'ledger.csv', 'unfollow_report.csv']) {
 }
 
 // ---------- 5. 脚本集合 ----------
-const must = ['lib.mjs', 'core.mjs', 'douyin-api.mjs', 'gallery.mjs', 'run.mjs', 'doctor.mjs', 'transfer.mjs', 'batch_unfollow.mjs',
-  'preflight_incremental.mjs', 'merge_incremental.mjs', 'final_verify.mjs', 'finalize.mjs', 'update_registry.mjs',
-  'setup.mjs', 'gen_review_gallery.mjs', 'gen_suspect_gallery.mjs', 'gen_stale_gallery.mjs',
-  'snapshot_main.mjs', 'local-state.mjs', 'open_review_env.mjs', 'profile-tab.mjs', 'gallery-unfollow.mjs', 'gallery-queue.js',
+const must = ['lib.mjs', 'core.mjs', 'douyin-api.mjs', 'gallery.mjs', 'run.mjs', 'doctor.mjs', 'transfer.mjs', 'driver2.mjs',
+  'batch_unfollow.mjs', 'unfollow_list.mjs', 'preflight_incremental.mjs', 'merge_incremental.mjs', 'final_verify.mjs', 'finalize.mjs',
+  'update_registry.mjs', 'setup.mjs', 'gen_review_gallery.mjs', 'gen_suspect_gallery.mjs', 'gen_stale_gallery.mjs',
+  'snapshot_main.mjs', 'scan_bans_latest.mjs', 'build_suspects_latest.mjs', 'compare_snapshots.mjs', 'recent-works.mjs', 'topic-change.mjs',
+  'refresh_review.mjs', 'rebuild_latest.mjs', 'prep_suspect_unfollow.mjs', 'read_suspect_state.mjs', 'sync_marks.mjs',
+  'local-state.mjs', 'open_review_env.mjs', 'profile-tab.mjs', 'gallery-unfollow.mjs', 'gallery-queue.js',
   'unfollow-action.mjs', 'gallery.css', 'gallery-client.js', 'gallery-profiles.js', 'gallery-decisions.js', 'gallery-lightbox.js', 'account-checks.mjs'];
 const missScripts = must.filter((f) => !fs.existsSync(path.join(PROJ, 'scripts', f)));
 add(missScripts.length ? 'FAIL' : 'PASS', '核心脚本齐全', missScripts.length ? '缺: ' + missScripts.join(',') : `${must.length} 个`);
@@ -131,5 +134,5 @@ const nF = results.filter((r) => r.level === 'FAIL').length;
 const nW = results.filter((r) => r.level === 'WARN').length;
 console.log(`\n汇总: ${results.length - nF - nW} 通过 / ${nW} 警告 / ${nF} 失败`);
 const report = results.map((r) => `${r.level}\t${r.name}\t${r.detail}`).join('\n');
-fs.writeFileSync(path.join(DATA, 'doctor_report.txt'), report, 'utf8');
+writeTextAtomic(path.join(DATA, 'doctor_report.txt'), report);
 process.exit(nF ? 1 : 0);

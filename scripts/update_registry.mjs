@@ -1,13 +1,13 @@
 /** 只在大号关注列表完整核验后，更新本地已取关登记表。 */
 import fs from 'node:fs';
 import path from 'node:path';
-import { launch, sleep } from './lib.mjs';
+import { launch } from './lib.mjs';
 import { isOwner, selfInfo } from './account-checks.mjs';
-import { writeJson } from './core.mjs';
-import { COMMON, maxFollowingPages } from './douyin-api.mjs';
+import { shanghaiDate, writeJson } from './core.mjs';
+import { COMMON, fetchFollowingList } from './douyin-api.mjs';
 
 const out = 'data/unfollow_registry.json';
-const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date());
+const today = shanghaiDate();
 const loadRegistry = () => (fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8')) : { entries: {} });
 function validate(registry) {
   if (!registry.entries || typeof registry.entries !== 'object' || Array.isArray(registry.entries)) {
@@ -21,34 +21,21 @@ const main = await launch('main', { background: true });
 try {
   const owner = await selfInfo(main, COMMON);
   if (!isOwner(owner, 'main') || !Number.isSafeInteger(owner.following_count)) throw new Error('大号身份或关注总数无法核实');
-  let cursor = '0', complete = false;
-  const maxPages = maxFollowingPages(owner.following_count);
-  for (let page = 0; page < maxPages; page++) {
-    const response = await main.page.evaluate(async ({ common, sec, cursor }) => {
-      const query = new URLSearchParams({
-        ...common, sec_user_id: sec, count: '20', max_time: cursor,
-        min_time: '0', offset: '0', source_type: '0', publish_video_strategy_type: '2',
-      });
-      const result = await fetch('https://www.douyin.com/aweme/v1/web/user/following/list/?' + query, { credentials: 'include' });
-      return result.json();
-    }, { common: COMMON, sec: owner.sec_uid, cursor });
-    if (response?.status_code !== 0 || !Array.isArray(response.followings) || ![true, false, 0, 1].includes(response.has_more)) {
-      throw new Error('关注列表返回不完整，保留上次登记表');
-    }
-    for (const u of response.followings) {
-      if (!u.sec_uid) throw new Error('关注列表包含未识别账号');
-      current.set(u.sec_uid, {
-        sec_uid: u.sec_uid, nickname: u.nickname || '', douyin_id: u.unique_id || u.short_id || '',
-        aweme_count: u.aweme_count ?? 0, follower_count: u.follower_count ?? 0,
-      });
-    }
-    if (!response.has_more) { complete = true; break; }
-    const next = String(response.min_time ?? '');
-    if (!response.followings.length || !next || next === cursor) break;
-    cursor = next;
-    await sleep(800);
+  let followings;
+  try {
+    followings = await fetchFollowingList(main.page, owner.sec_uid, owner.following_count, {
+      common: COMMON,
+      pageDelayMs: () => 800,
+    });
+  } catch {
+    throw new Error('关注列表返回不完整，保留上次登记表');
   }
-  if (!complete || current.size !== owner.following_count) throw new Error('关注列表未取全，保留上次登记表');
+  for (const u of followings) {
+    current.set(u.sec_uid, {
+      sec_uid: u.sec_uid, nickname: u.nickname || '', douyin_id: u.unique_id || u.short_id || '',
+      aweme_count: u.aweme_count ?? 0, follower_count: u.follower_count ?? 0,
+    });
+  }
 } finally {
   await main.context.close().catch(() => {});
 }

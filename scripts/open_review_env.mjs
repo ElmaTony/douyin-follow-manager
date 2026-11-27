@@ -5,7 +5,9 @@ import { pathToFileURL } from 'node:url';
 import { attachGalleryUnfollow } from './gallery-unfollow.mjs';
 import { templateTag } from './gallery.mjs';
 import { attachProfileTab } from './profile-tab.mjs';
-import { DATA, launch } from './lib.mjs';
+import { DATA, PROJ, launch } from './lib.mjs';
+
+if (PROJ) process.chdir(path.resolve(PROJ));
 
 const files = new Map([
   ['stale', 'stale_gallery.html'], ['suspect', 'suspect_gallery.html'], ['review', 'review_gallery.html'],
@@ -19,14 +21,21 @@ const targets = (selected ? [files.get(selected)] : [...files.values()]).map(nam
 });
 if (!selected) targets.push('https://www.douyin.com/');
 // Upgrade generated pages in place so existing bookmarks and review decisions still work.
+const needUpgrade = [];
 for (const [kind,name] of files) {
   const file=path.join(DATA,name);
   if (!fs.existsSync(file)) continue;
   const prefix=Buffer.alloc(512), fd=fs.openSync(file,'r');
   try { fs.readSync(fd,prefix,0,prefix.length,0); } finally { fs.closeSync(fd); }
-  if (!prefix.toString('utf8').includes(templateTag)) {
-    await import('./gen_'+kind+'_gallery.mjs');
+  if (!prefix.toString('utf8').includes(templateTag)) needUpgrade.push(kind);
+}
+if (needUpgrade.length) {
+  const snapFile = path.join(DATA, 'snapshot_latest.json');
+  const suspectsFile = path.join(DATA, 'suspects_latest.json');
+  if (fs.existsSync(snapFile) && (!fs.existsSync(suspectsFile) || fs.statSync(suspectsFile).mtimeMs < fs.statSync(snapFile).mtimeMs)) {
+    await import('./build_suspects_latest.mjs');
   }
+  for (const kind of needUpgrade) await import('./gen_'+kind+'_gallery.mjs');
 }
 const { context, page } = await launch('main');
 const closed = new Promise(resolve => context.once('close', resolve));

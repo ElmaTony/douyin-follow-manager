@@ -1,5 +1,23 @@
 # 更新记录 / Changelog
 
+## [v0.5.3](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.3) · 2026-11-27
+
+### 迁移稳定性、画廊审阅与桌面体验
+
+- 增量迁移遇到已在登记表或保留名单中的账号时，记录保护跳过并继续处理同批其余账号；单账号核对异常或关注未变不再重复空等或阻断后续批次，遇到平台风控仍立即暂停。
+- 合并小号关注列表时同步已知账号的最新昵称与抖音号，并对重新关注曾取关博主的记录给出提醒；迁移过程对仅昵称更新的账号支持在线复核后继续处理，终态核验支持复用未变动的已完成记录并在完成后清理临时导出文件。
+- 修正跨画廊定位单人后直接切换筛选会把账号标识留在搜索框的问题，修复灯箱放大封面后切换作品时旧图未复位遮挡画面的问题，并增强单条损坏审阅记录的读取容错与停更画廊排除统计。
+- 收敛关注列表分页重试、二次取关确认定位、上海时区取关日期与全链路原子文件写入；补齐项目自检对 Node.js 20+ 版本及全部运行脚本的检查。
+- 修复桌面端确认中止任务或关闭窗口期间任务刚好完成导致状态滞留的问题，支持按台账状态与备注搜索，优化长日志翻阅时的自动滚动及画廊计数读取速度。
+
+### English
+
+- Continue processing the remaining batch when an incremental transfer skips a protected or previously unfollowed account. Isolated account failures no longer stall or repeat across batches, while platform rate-limit or verification prompts still pause immediately.
+- Refresh stored nicknames and Douyin IDs when merging source follows, warn when a re-followed account matches the unfollow register, verify renamed accounts online during transfer, reuse unchanged completed records during incremental verification and remove temporary export files afterward.
+- Clear temporary account IDs from the search box when changing filters from a focused cross-gallery link, reset zoom transforms when switching works in the lightbox, tolerate malformed per-author storage entries and count only matching inactive accounts in the stale-gallery exclusion summary.
+- Share paginated following-list retries, scoped unfollow confirmation matching, Shanghai-date registry stamps and atomic file writes across scripts, and verify Node.js 20+ and the complete script set in self-checks.
+- Re-check live task state after confirmation dialogs on the desktop, extend ledger search to status labels and notes, preserve scroll position while reading earlier task output and read gallery counts from page headers.
+
 ## [v0.5.2](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.2) · 2026-11-25
 
 ### 互关兼容、大列表采集与桌面并发

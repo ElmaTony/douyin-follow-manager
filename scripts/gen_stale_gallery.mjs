@@ -2,7 +2,7 @@
  * gen_stale_gallery — 停更分组审阅画廊（30-90 / 90-180 / 180+，读最新快照）
  */
 import fs from 'node:fs';
-import { readJson, snapshotTime, staleAtSnapshot } from './core.mjs';
+import { readJson, snapshotTime, staleAtSnapshot, writeTextAtomic } from './core.mjs';
 import { buildGallery } from './gallery.mjs';
 
 const snap = readJson('data/snapshot_latest.json');
@@ -19,8 +19,12 @@ const asOf = snapshotTime(snap);
 const priorAccounts = readJson('data/snapshot_previous.json')?.accounts || {};
 const GROUP_RANK = { s3090: 0, s90180: 1, s180: 2, unknown: 3 };
 const data = [];
+let excludedBanned = 0;
 for (const [sec, a] of Object.entries(snap.accounts)) {
-  if (bannedSet.has(sec)) continue;
+  if (bannedSet.has(sec)) {
+    if (staleAtSnapshot(a, asOf, verified.get(sec), priorAccounts[sec])) excludedBanned++;
+    continue;
+  }
   const activity = staleAtSnapshot(a, asOf, verified.get(sec),priorAccounts[sec]);
   if (!activity) continue;
   const { gap, group, dateStr } = activity;
@@ -38,7 +42,7 @@ for (const [sec, a] of Object.entries(snap.accounts)) {
     extraLines: (a.captions || []).slice(0, 2).join(' ⏐ ') ? [{ text: (a.captions || []).slice(0, 2).join(' ⏐ ') }] : [],
   });
 }
-data.sort((x, y) => GROUP_RANK[x.group] - GROUP_RANK[y.group] || x.followers - y.followers);
+data.sort((x, y) => GROUP_RANK[x.group] - GROUP_RANK[y.group] || (x.followers ?? 0) - (y.followers ?? 0));
 
 const cnt = { s3090: 0, s90180: 0, s180: 0, unknown: 0 };
 for (const d of data) cnt[d.group]++;
@@ -62,7 +66,7 @@ const html = buildGallery({
     { id: 's180', label: '181 天以上' },
     { id: 'unknown', label: '活动待核' },
   ],
-  extraCount: { label: '已排除处罚号', value: bannedSet.size },
+  extraCount: { label: '已排除处罚号', value: excludedBanned },
 });
-fs.writeFileSync('data/stale_gallery.html', html, 'utf8');
+writeTextAtomic('data/stale_gallery.html', html);
 console.log(`停更画廊: ${data.length} 人 — 31–90 天 ${cnt.s3090} / 91–180 天 ${cnt.s90180} / 181 天以上 ${cnt.s180} / 待核 ${cnt.unknown}`);

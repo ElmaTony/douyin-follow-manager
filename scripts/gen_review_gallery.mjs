@@ -3,7 +3,7 @@
  * 数据: snapshot_latest.json + ban_latest.json ｜ 处罚号固定保留不可标记
  */
 import fs from 'node:fs';
-import { readJson, lowWorksUncertainty } from './core.mjs';
+import { readJson, lowWorksUncertainty, writeTextAtomic } from './core.mjs';
 import { buildGallery } from './gallery.mjs';
 
 const snap = readJson('data/snapshot_latest.json');
@@ -39,7 +39,7 @@ const data = candidates.map(([sec, a]) => {
       ...(banned && b.punish_text ? [{ text: b.punish_text, cls: 'bad' }] : []),
     ],
   };
-}).sort((x, y) => (x.badgeFix ? 1 : 0) - (y.badgeFix ? 1 : 0) || x.works - y.works || y.followers - x.followers);
+}).sort((x, y) => (x.badgeFix ? 1 : 0) - (y.badgeFix ? 1 : 0) || (x.works ?? -1) - (y.works ?? -1) || (y.followers ?? 0) - (x.followers ?? 0));
 
 const html = buildGallery({
   title: '低作品审阅',
@@ -58,5 +58,5 @@ const html = buildGallery({
   ],
   extraCount: { label: '异常保留', value: nBanned },
 });
-fs.writeFileSync('data/review_gallery.html', html, 'utf8');
+writeTextAtomic('data/review_gallery.html', html);
 console.log(`低作品画廊: ${data.length} 张卡 (可操作前候选 ${data.filter(x=>!x.badgeFix).length} / 待核 ${data.filter(x=>x.uncertain).length}, 处罚 ${nBanned})`);

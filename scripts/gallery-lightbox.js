@@ -117,6 +117,8 @@ lbEl.addEventListener('close',()=>{
 function move(delta){
   const d=byId.get(lb.sec);if(!d)return;
   const n=(d.covers||[]).length;const ni=lb.idx+delta;if(ni<0||ni>=n)return;
+  const prev=activeImg();
+  if(prev){prev.style.transition='none';prev.style.transform='';prev.classList.remove('zoomed');}
   lb.idx=ni;lb.scale=1;lb.tx=0;lb.ty=0;lb.idealTx=0;lb.idealTy=0;
   document.getElementById('lbZoom').classList.remove('on');renderLb();
 }
@@ -157,8 +159,9 @@ lbEl.addEventListener('dblclick',e=>{
 });
 document.addEventListener('keydown',e=>{
   if(!lbEl.open)return;
-  if(e.key==='Escape'){e.preventDefault();closeLb()}
-  else if(e.key==='ArrowLeft'){e.preventDefault();move(-1)}
+  if(e.key==='Escape'){e.preventDefault();closeLb();return}
+  if(e.altKey||e.ctrlKey||e.metaKey)return;
+  if(e.key==='ArrowLeft'){e.preventDefault();move(-1)}
   else if(e.key==='ArrowRight'){e.preventDefault();move(1)}
   else if(e.key==='Home'){e.preventDefault();move(-lb.idx)}
   else if(e.key==='End'){e.preventDefault();move(byId.get(lb.sec).covers.length-1-lb.idx)}

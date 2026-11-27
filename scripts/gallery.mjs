@@ -113,7 +113,7 @@ export function buildGallery({ title, date, snapshotAt = date, data, key, rowKey
   const receipts = Object.fromEntries(Object.entries(readJson('data/unfollow_registry.json')?.entries || {}).filter(([,e])=>e.verified_at).map(([sec,e])=>[sec,{at:e.verified_at,rev:e.review_revision}]));
   const payload = JSON.stringify({ data, union, receipts, sharedDecisions: true, key, rowKey, groups, presetKeep, protectedIds, filters, snapshotAt, timeZone }).replaceAll('<', '\\u003c');
   return `<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8">${templateTag}<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh-CN"><head><meta charset="utf-8">${templateTag}<meta name="guanxu-count" content="${data.length}"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer"><title>${escapeHtml(title)} · 关注审阅</title><style>${css}</style></head>
 <body>
 <header class="mast"><div class="wrap mast-inner">

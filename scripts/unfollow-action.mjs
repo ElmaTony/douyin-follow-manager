@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { sleep } from './lib.mjs';
 import { confirmedStatus, currentOwner, isOwner, selfInfo } from './account-checks.mjs';
-import { writeJson } from './core.mjs';
+import { shanghaiDate, writeJson } from './core.mjs';
 import { COMMON, fetchProfileOther, waitProfileHydrated } from './douyin-api.mjs';
 
 async function readStatus(page, secUid) {
@@ -33,7 +33,7 @@ function register(item, code) {
     ...previous,
     nickname: item.nickname,
     douyin_id: item.douyin_id,
-    unfollowed_since: previous.unfollowed_since || now.slice(0, 10),
+    unfollowed_since: previous.unfollowed_since || shanghaiDate(new Date(now)),
     verified_at: now,
     reason: code === 'done' ? '人工决定取关，已在线复核' : '人工决定取关，核对时已未关注',
     review_revision: item.rev || null,
@@ -70,11 +70,12 @@ export async function processUnfollow(page, item, { execute = false, stillPendin
     id: document.body?.innerText?.match(/抖音号[:：]\s*([^\s]+)/)?.[1],
     title: document.title,
   }));
+  const norm = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   const failure = (detail) => ({ code: 'failed', detail });
   if (
     identity.sec !== item.sec_uid ||
     (item.douyin_id && identity.id !== item.douyin_id) ||
-    (execute && (!item.nickname || !item.douyin_id || !identity.title.includes(item.nickname)))
+    (execute && (!item.nickname || !item.douyin_id || !norm(identity.title).includes(norm(item.nickname))))
   ) {
     if (execute) await sitePause(page);
     return failure('主页身份核对失败');
@@ -111,10 +112,13 @@ export async function processUnfollow(page, item, { execute = false, stillPendin
     }
     await sitePause(page);
     if (!confirmed) {
-      const explicit = page.getByRole('button', { name: /^(仍然取消关注|确认取消关注|取消关注)$/ }).filter({ visible: true });
-      const scoped = page.locator('[role="dialog"]:visible,dialog[open]').filter({ hasText: '取消关注' }).getByRole('button', { name: /^(确定|确认)$/ });
-      const button = explicit.or(scoped);
-      if ((await button.count()) === 1) {
+      const scoped = page
+        .locator('[role="dialog"]:visible,dialog[open]')
+        .filter({ hasText: '取消关注' })
+        .getByRole('button', { name: /^(确定|确认|仍然取消关注|确认取消关注|取消关注)$/ });
+      const explicit = page.getByRole('button', { name: /^(仍然取消关注|确认取消关注)$/ }).filter({ visible: true });
+      const button = (await scoped.count()) === 1 ? scoped : (await explicit.count()) === 1 ? explicit : null;
+      if (button) {
         await checkOwner(page);
         if (protectedAccounts().has(item.sec_uid) || !(await stillPending())) return failure('确认前标记已变化');
         await button.click({ timeout: 3000 });

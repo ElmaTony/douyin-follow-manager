@@ -83,7 +83,7 @@ export async function launch(which) {
       globalThis.location = {pathname: scene.path || new URL(address).pathname};
       globalThis.document = {
         title:'测试',
-        body:{innerText:'抖音号：abc'},
+        body:{innerText: scene.bodyText || '抖音号：abc'},
         querySelector: () => (scene.allowClick ? { textContent: scene.buttonText || '互相关注' } : null),
         querySelectorAll:(sel)=>{
           if (!scene.allowClick) {
@@ -102,7 +102,8 @@ export async function launch(which) {
       globalThis.fetch = async url => ({text:async()=>JSON.stringify(scene.posts),json:async()=>{
         if (url.includes('/self/')) return {status_code:0,user:{following_count:scene.count ?? 1,short_id:scene.wrongOwner?'0':owner[0],sec_uid:owner[1]+'-fixture'}};
         if (url.includes('/following/list/')) return scene.listResponse;
-        fs.appendFileSync('reads',which+' '+target+'\\n');
+        const readId = target || new URL(url).searchParams.get('sec_user_id') || '';
+        fs.appendFileSync('reads', which + ' ' + readId + '\\n');
         otherCalls++;
         if (scene.failAfter != null && otherCalls > scene.failAfter) return {status_code:1};
         const raw = scene[which];
@@ -166,14 +167,23 @@ test('登录角色错误或目标主页仅前缀相同，均不操作', () => {
   const wrong=run('transfer',{path:'/user/'+sec.slice(0,20)+'-other'});
   assert.match(wrong.stdout,/身份核对失败/); untouched();
 });
-test('已取关登记和永久保留都能拦截重新关注', () => {
+test('已取关登记和永久保留都能拦截重新关注，且不阻塞同批后续正常账号', () => {
   for(const keep of [true,false]){
     reset();
+    const normalRow = {idx:2,sec_uid:'normal-next',douyin_id:'abc',nickname:'测试',main_follow:'',alt_unfollow:''};
+    write('ledger.json',[record,normalRow]);
     if(keep)write('user_keep_list.json',{keeps:[record]});
     else write('unfollow_registry.json',{entries:{[sec]:{}}});
-    const result=run('transfer',{main:0});
-    assert.equal(result.status,1); assert.match(result.stderr,/已停止重新关注/); untouched();
-    assert.equal(JSON.parse(read('ledger.json'))[0].main_follow,'skip_protected');
+    const result=run('transfer',{allowClick:true,main:[0,0,1],alt:[1,0]});
+    assert.equal(result.status,0,result.stderr); assert.match(result.stderr,/已停止重新关注/);
+    const clicks=read('../clicks');
+    assert.doesNotMatch(clicks,new RegExp(sec));
+    assert.match(clicks,/main normal-next/);
+    assert.match(clicks,/alt normal-next/);
+    const after=JSON.parse(read('ledger.json'));
+    assert.equal(after[0].main_follow,'skip_protected');
+    assert.equal(after[1].main_follow,'done');
+    assert.equal(after[1].alt_unfollow,'done');
   }
 });
 test('批量干跑遵守数量上限，保护名单先排除，保留执行报告和断点', () => {
@@ -687,4 +697,89 @@ test('停更画廊无可见日期防假阳性（B8.1）且 topicChange 支持全
     assert.equal(topicChange(before, after)?.label, expected);
   }
   assert.equal(topicChange(['水彩风景插画', '素描速写画材'], ['橱窗好物同款下单秒杀', '限时福利优惠券团购促销']), null);
+});
+
+test('driver2 单账号身份或关注失败不死循环且不阻塞后续账号，风控则立即中止', () => {
+  reset();
+  write('ledger.json', [
+    { idx: 1, sec_uid: 'mismatch-sec', douyin_id: 'wrong_id', nickname: '不匹配旧名', main_follow: '', alt_unfollow: '' },
+    { idx: 2, sec_uid: sec, douyin_id: 'abc', nickname: '测试', main_follow: '', alt_unfollow: '' },
+  ]);
+  const mixed = run('driver2', { allowClick: true, main: [0, 1], alt: [1, 0] });
+  assert.equal(mixed.status, 0, mixed.stderr);
+  assert.match(mixed.stdout, /\[WARN\].*待重试\/未完成 1/);
+  const afterMixed = JSON.parse(read('ledger.json'));
+  assert.equal(afterMixed[0].fail_count, 1);
+  assert.equal(afterMixed[1].alt_unfollow, 'done');
+
+  reset();
+  write('ledger.json', [{ ...record, main_follow: '', alt_unfollow: '' }]);
+  const followFail = run('driver2', { allowClick: true, main: 0 });
+  assert.equal(followFail.status, 0, followFail.stderr);
+  assert.equal(JSON.parse(read('ledger.json'))[0].main_follow, 'follow_fail');
+
+  reset();
+  write('ledger.json', [{ ...record, main_follow: '', alt_unfollow: '' }]);
+  const risked = run('driver2', { allowClick: true, main: 0, bodyText: '抖音号：abc 操作过于频繁' });
+  assert.equal(risked.status, 1);
+  assert.match(risked.stdout, /出现平台风控限制/);
+  assert.equal(JSON.parse(read('ledger.json'))[0].main_follow, 'risk_paused');
+});
+
+test('merge_incremental 同步最新资料并为小号重关命中登记表发出 WARN', () => {
+  reset();
+  write('ledger.json', [
+    { idx: 1, sec_uid: sec, douyin_id: 'old_id', nickname: '旧昵称', main_follow: 'done', alt_unfollow: 'done' },
+  ]);
+  write('unfollow_registry.json', {
+    entries: { [sec]: { unfollowed_since: '2026-01-01', reason: '人工取关' } },
+  });
+  write('in.json', {
+    list: [{ sec_uid: sec, nickname: '最新昵称', unique_id: 'new_id', short_id: '123' }],
+  });
+  const merged = run('merge_incremental', {}, ['data/in.json']);
+  assert.equal(merged.status, 0, merged.stderr);
+  assert.match(merged.stdout, /\[WARN\].*命中已取关登记表 1 人/);
+  const [row] = JSON.parse(read('ledger.json'));
+  assert.equal(row.nickname, '最新昵称');
+  assert.equal(row.douyin_id, 'new_id');
+  assert.equal(row.alt_unfollow, '');
+  assert.equal(row.alt_fail_count, 0);
+});
+
+test('final_verify --incremental 复用未变动已完成记录，仅请求新增记录', () => {
+  reset();
+  write('ledger.json', [
+    { idx: 1, sec_uid: sec, douyin_id: 'abc', nickname: '测试', main_follow: 'done', alt_unfollow: 'done' },
+    { idx: 2, sec_uid: 'second-sec', douyin_id: 'abc', nickname: '测试', main_follow: 'already', alt_unfollow: 'done' },
+  ]);
+  const full = run('final_verify', { main: 1, alt: 0 });
+  assert.equal(full.status, 0, full.stderr);
+  fs.rmSync(path.join(fixture, 'reads'), { force: true });
+
+  const rows = JSON.parse(read('ledger.json'));
+  rows.push({ idx: 3, sec_uid: 'third-sec', douyin_id: 'abc', nickname: '测试', main_follow: 'done', alt_unfollow: 'done' });
+  write('ledger.json', rows);
+  const inc = run('final_verify', { main: 1, alt: 0 }, ['--incremental']);
+  assert.equal(inc.status, 0, inc.stderr);
+  const reads = fs.readFileSync(path.join(fixture, 'reads'), 'utf8').trim().split('\n');
+  assert.deepEqual(reads, ['main third-sec', 'alt third-sec']);
+  assert.equal(JSON.parse(read('verify.json')).rows.length, 3);
+});
+
+test('reset-held 不重置已完成行，且能清理未挂起行的残留异常计数', () => {
+  reset();
+  write('ledger.json', [
+    { idx: 1, sec_uid: 'done-row', douyin_id: 'd1', nickname: '已完成', main_follow: 'done', alt_unfollow: 'done', fail_count: 2 },
+    { idx: 2, sec_uid: 'dirty-pending', douyin_id: 'd2', nickname: '残留计数', main_follow: '', alt_unfollow: '', fail_count: 2, alt_fail_count: 1 },
+    { idx: 3, sec_uid: 'held-rest', douyin_id: 'd3', nickname: '受限保留', main_follow: 'skip_restricted', alt_unfollow: '', fail_count: 1 },
+  ]);
+  const res = run('run', {}, ['reset-held']);
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /已重置 1 条/);
+  const rows = JSON.parse(read('ledger.json'));
+  assert.equal(rows[0].fail_count, 2);
+  assert.equal(rows[1].fail_count, 0);
+  assert.equal(rows[1].alt_fail_count, 0);
+  assert.equal(rows[2].main_follow, 'skip_restricted');
 });

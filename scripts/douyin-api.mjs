@@ -25,9 +25,11 @@ export async function waitProfileHydrated(page, { timeoutMs = 4500, fallbackMs =
       .waitForFunction(
         () => {
           const text = document.body?.innerText || '';
+          const title = document.title ? document.title.trim() : '';
           return (
             location.pathname.includes('/user/') &&
-            (/抖音号[:：]/.test(text) || /不存在|注销|验证|频繁|滑块/.test(text))
+            ((/抖音号[:：]/.test(text) && title && !/^抖音[-—\s]*记录美好生活$/.test(title)) ||
+              /不存在|注销|验证|频繁|滑块/.test(text))
           );
         },
         undefined,
@@ -38,6 +40,81 @@ export async function waitProfileHydrated(page, { timeoutMs = 4500, fallbackMs =
     return;
   }
   await sleep(fallbackMs);
+}
+
+export async function fetchFollowingList(
+  page,
+  secUid,
+  expectedCount,
+  { common = COMMON, onPage, retryLimit = 3, pageDelayMs = () => 800 } = {}
+) {
+  const maxPages = maxFollowingPages(expectedCount);
+  const map = new Map();
+  let cursor = '0';
+  let pageNo = 0;
+  let hasMore = true;
+  let fails = 0;
+  while (hasMore && pageNo < maxPages) {
+    pageNo++;
+    let res;
+    try {
+      res = await page.evaluate(
+        async ({ sec, cursor, common }) => {
+          const qs = new URLSearchParams({
+            ...common,
+            sec_user_id: sec,
+            count: '20',
+            max_time: String(cursor),
+            min_time: '0',
+            offset: '0',
+            source_type: '0',
+            publish_video_strategy_type: '2',
+          });
+          const r = await fetch('https://www.douyin.com/aweme/v1/web/user/following/list/?' + qs, {
+            headers: { accept: 'application/json', referer: 'https://www.douyin.com/' },
+            credentials: 'include',
+          });
+          return await r.json();
+        },
+        { sec: secUid, cursor, common }
+      );
+    } catch {
+      res = null;
+    }
+    if (res?.status_code !== 0) {
+      if (++fails <= retryLimit) {
+        await sleep(2500);
+        continue;
+      }
+      break;
+    }
+    fails = 0;
+    if (!Array.isArray(res.followings) || ![0, 1, true, false].includes(res.has_more)) {
+      throw new Error('关注列表返回不完整');
+    }
+    for (const u of res.followings) {
+      if (!u?.sec_uid) throw new Error('关注列表包含未识别账号');
+      if (!map.has(u.sec_uid)) map.set(u.sec_uid, u);
+    }
+    hasMore = Boolean(res.has_more);
+    onPage?.({
+      pageNo,
+      pageItems: res.followings,
+      totalLoaded: map.size,
+      totalReported: res.total,
+      hasMore,
+    });
+    if (!hasMore) break;
+    const next = String(res.min_time ?? '');
+    if (!res.followings.length || !next || next === String(cursor)) break;
+    cursor = next;
+    const delay = typeof pageDelayMs === 'function' ? pageDelayMs() : pageDelayMs;
+    if (delay > 0) await sleep(delay);
+  }
+  if (hasMore || !Number.isSafeInteger(expectedCount) || map.size !== expectedCount) {
+    throw new Error(`关注列表未完整导出 (${map.size}/${expectedCount})`);
+  }
+  return [...map.values()];
 }
 
 export function fetchProfileOther(page, secUid, common = COMMON) {
@@ -58,6 +135,7 @@ export function fetchProfileOther(page, secUid, common = COMMON) {
       const p = u?.punish_remind_info || null;
       return {
         status_code: d?.status_code,
+        status_msg: d?.status_msg || '',
         sec_uid: u?.sec_uid,
         follow_status: u?.follow_status,
         nickname: u?.nickname,

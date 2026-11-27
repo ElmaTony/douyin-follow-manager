@@ -7,14 +7,14 @@
 import { launch, sleep } from './lib.mjs';
 import { isOwner, selfInfo } from './account-checks.mjs';
 import { fileURLToPath } from 'node:url';
-import { readJson, writeJson } from './core.mjs';
-import { COMMON, maxFollowingPages } from './douyin-api.mjs';
+import { localTimeStr, readJson, writeJson } from './core.mjs';
+import { COMMON, fetchFollowingList } from './douyin-api.mjs';
 import { readRecentWorks } from './recent-works.mjs';
 
 const OUT = 'data/snapshot_latest.json';
 const progressFile = fileURLToPath(new URL('../data/.snapshot-progress.json', import.meta.url));
 const publishedFile = fileURLToPath(new URL('../data/snapshot_latest.json', import.meta.url));
-const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+const log = (...a) => console.log(localTimeStr(), ...a);
 
 const m = await launch('main');
 const page = m.page;
@@ -23,44 +23,25 @@ try {
   if (!isOwner(owner, 'main') || !Number.isSafeInteger(owner.following_count)) throw new Error('大号身份或关注总数无法核实');
 
   // ---- 1) 关注列表 ----
-  const list = new Map();
-  const maxPages = maxFollowingPages(owner.following_count);
-  let maxTime = 0, pageNo = 0, hasMore = true, fails = 0;
-  while (hasMore && pageNo < maxPages) {
-    pageNo++;
-    const res = await page.evaluate(async ({ sec, maxTime, common }) => {
-      const qs = new URLSearchParams({
-        ...common, sec_user_id: sec, count: '20', max_time: String(maxTime),
-        min_time: '0', offset: '0', source_type: '0', publish_video_strategy_type: '2',
-      });
-      const r = await fetch('https://www.douyin.com/aweme/v1/web/user/following/list/?' + qs, {
-        headers: { accept: 'application/json', referer: 'https://www.douyin.com/' }, credentials: 'include',
-      });
-      return await r.json();
-    }, { sec: owner.sec_uid, maxTime, common: COMMON });
-    if (res?.status_code !== 0) { if (++fails > 3) break; log('列表页失败重试'); await sleep(5000); continue; }
-    fails = 0;
-    if (!Array.isArray(res.followings) || ![0, 1, true, false].includes(res.has_more)) throw new Error('关注列表缺少完整性信息');
-    hasMore = Boolean(res.has_more);
-    const users = res.followings || [];
-    if (!users.length) break;
-    if (hasMore && (!res.min_time || String(res.min_time) === String(maxTime))) throw new Error('关注列表分页未完成');
-    maxTime = res.min_time;
-    for (const u of users) {
-      if (!u.sec_uid) throw new Error('关注列表中有未知账号');
-      if (list.has(u.sec_uid)) continue;
-      list.set(u.sec_uid, {
-        sec_uid: u.sec_uid, nickname: u.nickname || '', douyin_id: u.unique_id || u.short_id || '',
-        signature: u.signature || '', followers: u.follower_count || 0, works: Number.isInteger(u.aweme_count) ? u.aweme_count : null,
-        covers: [], captions: [], times: [], aigc_n: 0, n_visible: 0, fetch: 'pending',
-      });
-    }
-    if (pageNo % 10 === 0) log(`列表 ${pageNo} 页 / ${list.size} 人`);
-    if (!hasMore) break;
-    await sleep(700);
+  let followings;
+  try {
+    followings = await fetchFollowingList(page, owner.sec_uid, owner.following_count, {
+      common: COMMON,
+      pageDelayMs: () => 700,
+      onPage: ({ pageNo, totalLoaded }) => {
+        if (pageNo % 10 === 0) log(`列表 ${pageNo} 页 / ${totalLoaded} 人`);
+      },
+    });
+  } catch (err) {
+    throw new Error(`${err.message}，已保留原快照`);
   }
-  if (hasMore || list.size !== owner.following_count) {
-    throw new Error(`关注列表不完整 (${list.size}/${owner.following_count})，已保留原快照`);
+  const list = new Map();
+  for (const u of followings) {
+    list.set(u.sec_uid, {
+      sec_uid: u.sec_uid, nickname: u.nickname || '', douyin_id: u.unique_id || u.short_id || '',
+      signature: u.signature || '', followers: u.follower_count || 0, works: Number.isInteger(u.aweme_count) ? u.aweme_count : null,
+      covers: [], captions: [], times: [], aigc_n: 0, n_visible: 0, fetch: 'pending',
+    });
   }
   log(`关注列表: ${list.size} 人, 开始逐人抓作品...`);
 

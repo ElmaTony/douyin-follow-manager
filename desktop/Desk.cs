@@ -21,7 +21,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
-[assembly: AssemblyVersion("0.5.2.0")]
+[assembly: AssemblyVersion("0.5.3.0")]
 [assembly: AssemblyTitle("关序")]
 [assembly: AssemblyProduct("关序")]
 [assembly: AssemblyDescription("关注迁移与审阅工具")]
@@ -30,10 +30,7 @@ namespace FollowDesk {
     public sealed class LedgerRow {
         public int Id {get;set;} public string Name {get;set;} public string Account {get;set;}
         public string Main {get;set;} public string Alt {get;set;} public string Note {get;set;}
-        public bool Done { get { return Alt=="done" || ((Main=="done" || Main=="already") && Alt=="skip_not_following"); } }
-        public bool Held { get { return !Done && (Main=="skip_restricted" || Main=="skip_protected" || Main=="skip_unknown" || Main=="id_check_fail" || Alt=="skip_id_fail"); } }
-        public bool Retryable { get { return !Done && (Main=="skip_unknown" || Main=="id_check_fail" || Main=="follow_fail" || Main=="risk_paused" || Alt=="skip_id_fail" || Alt=="unfollow_fail" || Alt=="risk_paused"); } }
-        public bool Pending { get { return !Done && !Held; } }
+        public bool Done {get;set;} public bool Held {get;set;} public bool Retryable {get;set;} public bool Pending {get;set;}
         public string MainLabel {get {return Main=="done" ? "已关注" : Main=="already" ? "原已关注" : Label(Main);}}
         public string AltLabel {get {return Alt=="done" ? "已取关" : Label(Alt);}}
         static string Label(string s) {
@@ -173,7 +170,10 @@ namespace FollowDesk {
             using(var drawing=print.Open()) {
                 drawing.DrawRectangle((Brush)Window.FindResource("FiredClay"),null,panel);
                 drawing.DrawRectangle(grain,null,panel);
-                var fineLine=new Pen(new SolidColorBrush(Color.FromArgb(33,255,233,199)),0.75);
+                var lineBrush=new SolidColorBrush(Color.FromArgb(33,255,233,199));
+                lineBrush.Freeze();
+                var fineLine=new Pen(lineBrush,0.75);
+                fineLine.Freeze();
                 // Curves are confined to the right half and follow the shape of the progress dial.
                 for(int i=0;i<18;i++) {
                     double x=244+i*7.4;
@@ -218,7 +218,7 @@ namespace FollowDesk {
         static Geometry RingSegment(double start,double fraction) {
             const double radius=39, center=47;
             if(fraction<=0) return null;
-            if(fraction>=1) return new EllipseGeometry(new Point(center,center),radius,radius);
+            if(fraction>=0.9999) return new EllipseGeometry(new Point(center,center),radius,radius);
             Func<double,Point> point=t=>new Point(center+radius*Math.Sin(t*2*Math.PI),center-radius*Math.Cos(t*2*Math.PI));
             var geometry=new StreamGeometry();
             using(var ctx=geometry.Open()) {
@@ -279,6 +279,16 @@ namespace FollowDesk {
                 ? "将结束本次本地任务，已打开的审阅画廊将保持运行。"
                 : "将结束本次任务及其打开的浏览器。已发生的账号操作可能需要重新核对。";
             if(!Confirm(close?"中止任务并关闭管理台？":"中止当前任务？",detail)) return;
+            stopTask=busy && !stopping;
+            stopGallery=galleryOpen && !galleryStopping && (close || !busy);
+            if(!stopTask && !stopGallery) {
+                if(close) {
+                    if(!busy && !galleryOpen) { Window.Close(); return; }
+                    closeRequested=true;
+                }
+                Controls();
+                return;
+            }
             closeRequested=closeRequested || close;
             try {
                 if(stopTask) { stopping=true; runner.Stop(); }
@@ -365,7 +375,9 @@ namespace FollowDesk {
                 else if(start<current.Length && char.IsLowSurrogate(current[start])) start++;
                 box.Text=current.Substring(start);
             }
-            box.AppendText(chunk.ToString()); box.ScrollToEnd();
+            bool stickToBottom=box.ExtentHeight<=box.ViewportHeight || (box.VerticalOffset+box.ViewportHeight>=box.ExtentHeight-24);
+            box.AppendText(chunk.ToString());
+            if(stickToBottom) box.ScrollToEnd();
             Get<TextBlock>("LogEmpty").Visibility=Visibility.Collapsed;
         }
         async Task Refresh() {
@@ -416,7 +428,11 @@ namespace FollowDesk {
             var all=data==null || data.ledger==null?new LedgerRow[0]:data.ledger;
             var q=Get<TextBox>("Search").Text.Trim();
             var rows=all.Where(r=>(Get<CheckBox>("PendingOnly").IsChecked!=true || r.Pending) &&
-                ((r.Name??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0 || (r.Account??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0)).ToList();
+                ((r.Name??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0 ||
+                 (r.Account??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0 ||
+                 (r.MainLabel??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0 ||
+                 (r.AltLabel??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0 ||
+                 (r.Note??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0)).ToList();
             Get<DataGrid>("Rows").ItemsSource=rows;
             Get<TextBlock>("MatchCount").Text=rows.Count+" / "+all.Length;
         }

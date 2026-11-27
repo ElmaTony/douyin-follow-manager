@@ -3,7 +3,7 @@
  *  读 suspect_state_read.json (raw) + 当前画廊候选
  *  输出 data/batch_unfollow_suspects.csv
  */
-import { csvText, galleryPayload, reviewableRows } from './core.mjs';
+import { csvText, galleryPayload, reviewableRows, writeTextAtomic } from './core.mjs';
 import fs from 'node:fs';
 
 const read = JSON.parse(fs.readFileSync('data/suspect_state_read.json', 'utf8'));
@@ -23,5 +23,5 @@ for (const x of unf) console.log('  ✗', x.nick, `(${x.id})`, x.tier === 'high'
 
 const cols = ['序号', '昵称', '抖音号', '主页链接', 'sec_uid', '保留(填1则跳过)'];
 const rows = unf.map((x, i) => [i + 1, x.nick, x.id, 'https://www.douyin.com/user/' + x.sec, x.sec, '']);
-fs.writeFileSync('data/batch_unfollow_suspects.csv', csvText(cols, rows), 'utf8');
+writeTextAtomic('data/batch_unfollow_suspects.csv', csvText(cols, rows));
 console.log(`输出: data/batch_unfollow_suspects.csv`);

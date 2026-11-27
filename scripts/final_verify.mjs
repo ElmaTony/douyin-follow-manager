@@ -7,10 +7,12 @@
 import { launch, log, sleep } from './lib.mjs';
 import fs from 'node:fs';
 import { confirmedStatus, isOwner, selfInfo } from './account-checks.mjs';
-import { isFollowingStatus, writeJson } from './core.mjs';
+import { isFollowingStatus, isLedgerDone, readJson, writeJson } from './core.mjs';
 import { COMMON, fetchProfileOther } from './douyin-api.mjs';
 
+const INCREMENTAL = process.argv.includes('--incremental');
 const rows = JSON.parse(fs.readFileSync('data/ledger.json', 'utf8'));
+const rowSig = (t) => [t.sec_uid, t.main_follow || '', t.main_follow_time || '', t.alt_unfollow || '', t.alt_unfollow_time || ''].join('|');
 
 async function rawStatus(page, secUid) {
   const response = await fetchProfileOther(page, secUid, COMMON);
@@ -18,19 +20,36 @@ async function rawStatus(page, secUid) {
   return response;
 }
 
-async function safeStatus(page, secUid, which) {
+async function safeStatus(page, secUid, which, allowDeleted = false) {
   try {
     return await rawStatus(page, secUid);
   } catch (e) {
+    if (allowDeleted) {
+      const probe = await fetchProfileOther(page, secUid, COMMON).catch(() => null);
+      if (probe && probe.status_code !== 0 && /不存在|注销/.test(probe.status_msg || '')) {
+        return { deleted: true, follow_status: 0 };
+      }
+    }
     log(`!! ${which} 读取失败(${e.message.slice(0, 40)}), 重载页面重试`);
     await page.goto('https://www.douyin.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
     await sleep(4000);
-    try { return await rawStatus(page, secUid); } catch { return null; }
+    try {
+      return await rawStatus(page, secUid);
+    } catch {
+      if (allowDeleted) {
+        const probe = await fetchProfileOther(page, secUid, COMMON).catch(() => null);
+        if (probe && probe.status_code !== 0 && /不存在|注销/.test(probe.status_msg || '')) {
+          return { deleted: true, follow_status: 0 };
+        }
+      }
+      return null;
+    }
   }
 }
 
 let m, a;
 let fail = 0;
+let reused = 0;
 try {
   m = await launch('main');
   a = await launch('alt');
@@ -41,21 +60,48 @@ try {
   }
   log(`大号: ${selfM.nickname} (${selfM.short_id}) 关注 ${selfM.following_count}`);
 
+  const prev = INCREMENTAL ? readJson('data/verify.json') : null;
+  const prevMap =
+    INCREMENTAL && prev?.selfM?.sec_uid === selfM.sec_uid && prev?.selfA?.sec_uid === selfA.sec_uid && Array.isArray(prev.rows)
+      ? new Map(prev.rows.map((r) => [r.idx, r]))
+      : new Map();
+
   const out = [];
   for (const t of rows) {
-    const sM = await safeStatus(m.page, t.sec_uid, 'main');
-    const sA = await safeStatus(a.page, t.sec_uid, 'alt');
-    if (!sM || !sA) { fail++; log(`!! #${t.idx} ${t.nickname} 状态读取失败`); }
+    const sig = rowSig(t);
+    const prevRow = prevMap.get(t.idx);
+    if (INCREMENTAL && isLedgerDone(t) && prevRow?.sig === sig && isFollowingStatus(prevRow.main_status) && prevRow.alt_status === 0) {
+      out.push({
+        idx: t.idx,
+        nickname: t.nickname,
+        main_status: prevRow.main_status,
+        alt_status: prevRow.alt_status,
+        sig,
+      });
+      reused++;
+      continue;
+    }
+    const allowDeleted = t.main_follow === 'skip_restricted';
+    const sM = await safeStatus(m.page, t.sec_uid, 'main', allowDeleted);
+    const sA = await safeStatus(a.page, t.sec_uid, 'alt', allowDeleted);
+    if (!sM || !sA) {
+      fail++;
+      log(`!! #${t.idx} ${t.nickname} 状态读取失败`);
+    }
+    const deleted = Boolean(sM?.deleted || sA?.deleted);
     out.push({
-      idx: t.idx, nickname: t.nickname,
+      idx: t.idx,
+      nickname: t.nickname,
       main_status: sM ? sM.follow_status : null,
       alt_status: sA ? sA.follow_status : null,
+      ...(deleted ? { deleted: true } : {}),
+      sig,
     });
     if (t.idx % 20 === 0) log(`进度 ${t.idx}/${rows.length}`);
     await sleep(350 + Math.floor(Math.random() * 350));
   }
 
-  log(`小号: ${selfA.nickname} (${selfA.short_id}) 关注 ${selfA.following_count}`);
+  log(`小号: ${selfA.nickname} (${selfA.short_id}) 关注 ${selfA.following_count}${reused ? ` (复用已完成核验 ${reused} 条)` : ''}`);
 
   if (!fail) writeJson('data/verify.json', { selfM, selfA, rows: out }, 2);
 

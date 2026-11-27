@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { launch, sleep } from './lib.mjs';
-import { reportCsvText, writeJson } from './core.mjs';
+import { reportCsvText, writeJson, writeTextAtomic } from './core.mjs';
 import { loadUnfollowList } from './unfollow_list.mjs';
 import { processUnfollow, verifyMain, readRegistry } from './unfollow-action.mjs';
 
@@ -56,7 +56,7 @@ try {
   for (const item of items) {
     const { code, detail } = await processUnfollow(m.page, item, { execute: EXECUTE });
     report.push({ ...item, result: code === 'done' ? '取关成功' : code === 'absent' ? '本就未关注' : detail, detail });
-    fs.writeFileSync(REPORT, toReportCsv(report), 'utf8');
+    writeTextAtomic(REPORT, toReportCsv(report));
     if (EXECUTE) {
       for (const key of ['done', 'skipped', 'failed']) delete state[key][item.sec_uid];
       const key = code === 'done' ? 'done' : code === 'absent' ? 'skipped' : 'failed';

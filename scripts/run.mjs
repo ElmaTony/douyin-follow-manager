@@ -10,11 +10,12 @@
  *   node run.mjs registry                 刷新已取关登记表(顺带检查重新关注)
  *   node run.mjs reset-held [--include-protected]  重置台账中的可重试异常或挂起项
  */
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { readJson, writeJson } from './core.mjs';
+import { isLedgerDone, isLedgerHeld, readJson, writeJson } from './core.mjs';
 
 const S = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(S, '..');
@@ -28,13 +29,6 @@ const run = (script, args = []) => {
     console.error(`\n✗ ${script} 失败(退出码 ${r.status})`);
     process.exit(r.status || 1);
   }
-};
-
-const stamp = () => {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return mm + dd;
 };
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -71,11 +65,15 @@ switch (cmd) {
     run('open_review_env.mjs', rest);
     break;
   case 'transfer': {
-    const file = `data/alt_following_${stamp()}.json`;
-    run('preflight_incremental.mjs', [file]);
-    run('merge_incremental.mjs', [file]);
+    const file = `data/.alt_following_${randomUUID()}.json`;
+    try {
+      run('preflight_incremental.mjs', [file]);
+      run('merge_incremental.mjs', [file]);
+    } finally {
+      fs.rmSync(path.join(ROOT, file), { force: true });
+    }
     run('driver2.mjs');
-    run('final_verify.mjs');
+    run('final_verify.mjs', ['--incremental']);
     run('finalize.mjs');
     break;
   }
@@ -103,6 +101,7 @@ switch (cmd) {
     const altHeld = new Set(['skip_id_fail', 'unfollow_fail', 'risk_paused']);
     let count = 0;
     for (const r of rows) {
+      if (isLedgerDone(r)) continue;
       let changed = false;
       if (mainHeld.has(r.main_follow)) {
         r.main_follow = '';
@@ -114,9 +113,13 @@ switch (cmd) {
         r.alt_fail_count = 0;
         changed = true;
       }
+      if (!isLedgerHeld(r)) {
+        if ((r.fail_count || 0) > 0) { r.fail_count = 0; changed = true; }
+        if ((r.alt_fail_count || 0) > 0) { r.alt_fail_count = 0; changed = true; }
+      }
       if (changed) count++;
     }
-    if (count > 0) writeJson(ledgerFile, rows);
+    if (count > 0) writeJson(ledgerFile, rows, 2);
     console.log(`已重置 ${count} 条异常或挂起记录为待处理。`);
     break;
   }
@@ -135,6 +138,7 @@ switch (cmd) {
   reset-held [--include-protected] 重置台账中的异常或挂起项为待处理
   diff                     比对最近两次快照并导出变化清单
   refresh                  在线更新快照、核验和三个画廊
+  rebuild                  基于现有快照重建核验与三个画廊
   preview <名单>             本地预览 CSV / 画廊决定名单
   unfollow <名单> [--execute] 批量取关(默认在线核对)
   registry                 刷新已取关登记表 + 检查重新关注

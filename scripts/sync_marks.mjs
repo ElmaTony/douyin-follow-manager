@@ -21,7 +21,7 @@ if (source.sharedDecisions || dest.sharedDecisions) {
 }
 const eligible = new Set(reviewableRows(dest).map(row => row.sec_uid));
 const shared = reviewableRows(source).map(row => row.sec_uid).filter(sec => eligible.has(sec));
-const m = await launch('main');
+const m = await launch('main', { background: true });
 let res;
 try {
   await m.page.goto(pathToFileURL(sourceFile).href, {waitUntil:'domcontentloaded'});
@@ -42,7 +42,7 @@ try {
     return stats;
   }, {key:dest.key, shared, marks});
 } finally {
-  await m.context.close();
+  await m.context.close().catch(() => {});
 }
 console.log('===== 同步完成 =====');
 console.log(`继承保留: ${res.syncKeep} | 继承取关: ${res.syncUnf} | 你已在低作品画廊标过(以手动为准): ${res.alreadyRev} | 非低作品候选(跳过): ${res.notCandidate}`);

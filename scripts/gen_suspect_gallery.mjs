@@ -2,7 +2,7 @@
  * gen_suspect_gallery — 卖号/改名/转行嫌疑画廊（读 suspects_latest, 处罚号剔除）
  */
 import fs from 'node:fs';
-import { readJson } from './core.mjs';
+import { readJson, writeTextAtomic } from './core.mjs';
 import { buildGallery } from './gallery.mjs';
 
 const all = readJson('data/suspects_latest.json');
@@ -36,7 +36,7 @@ const data = all
       tier: x.tier,
     };
   })
-  .sort((a, b) => (a.tier === 'high' ? 0 : 1) - (b.tier === 'high' ? 0 : 1) || b.followers - a.followers);
+  .sort((a, b) => (a.tier === 'high' ? 0 : 1) - (b.tier === 'high' ? 0 : 1) || (b.followers ?? 0) - (a.followers ?? 0));
 
 const snapshotAt = readJson('data/snapshot_latest.json')?.exported_at || '';
 const html = buildGallery({
@@ -54,5 +54,5 @@ const html = buildGallery({
     { id: 'shift', label: '有内容转向' },
   ],
 });
-fs.writeFileSync('data/suspect_gallery.html', html, 'utf8');
+writeTextAtomic('data/suspect_gallery.html', html);
 console.log(`嫌疑画廊: ${data.length} 人`);

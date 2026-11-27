@@ -9,9 +9,9 @@ import { launch, sleep } from './lib.mjs';
 import { selfInfo, isOwner } from './account-checks.mjs';
 import { COMMON, fetchProfileOther } from './douyin-api.mjs';
 import { readRecentWorks } from './recent-works.mjs';
-import { readJson, writeJson, snapshotTime, staleAtSnapshot } from './core.mjs';
+import { localTimeStr, readJson, writeJson, snapshotTime, staleAtSnapshot } from './core.mjs';
 
-const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+const log = (...a) => console.log(localTimeStr(), ...a);
 const snap = readJson('data/snapshot_latest.json');
 if (!snap) { console.error('缺少 snapshot_latest.json'); process.exit(1); }
 const suspects = readJson('data/suspects_latest.json') || [];

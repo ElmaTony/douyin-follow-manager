@@ -218,6 +218,13 @@ try {
       if (expectedCursor) assert.match(await page.locator('#rowPos').textContent(),/6–/);
       await page.locator('#markFilter').selectOption('all');
       await page.goto(url(file),{waitUntil:'domcontentloaded'});
+      await crossLink.click();
+      await page.waitForFunction(id=>document.querySelector('#search').value===id,crossing.sec_uid);
+      await click('[data-f="all"]');
+      assert.equal(await page.locator('#search').inputValue(),'','单人定位切换筛选时应清除临时 sec_uid');
+      const savedView=await page.evaluate(()=>JSON.parse(localStorage.getItem(viewKey)||'{}'));
+      assert.notEqual(savedView.search,crossing.sec_uid,'不得将临时 sec_uid 写入视图搜索配置');
+      await page.goto(url(file),{waitUntil:'domcontentloaded'});
     }
     await page.locator('#markFilter').selectOption('none-no-cover');
     const marked=await page.evaluate(()=>readMarks());
@@ -351,6 +358,18 @@ try {
       img.src = canvas.toDataURL(); await img.decode(); img.hidden = false;
       img.parentElement.querySelector('.missing').hidden = true;
     });
+    await page.locator('.slide img.active').dblclick();
+    assert.ok(await page.locator('#lbZoom').isVisible());
+    await page.keyboard.press('ArrowRight');
+    assert.match(await page.locator('#lbPos').textContent(), /^2 \//);
+    assert.ok(!await page.locator('#lbZoom').isVisible());
+    const firstSlideState = await page.locator('.slide[data-i="0"] img').evaluate(img => ({
+      transform: img.style.transform,
+      zoomed: img.classList.contains('zoomed'),
+    }));
+    assert.equal(firstSlideState.transform, '', '切换封面后上一张图的内联缩放应复位');
+    assert.equal(firstSlideState.zoomed, false);
+    await page.keyboard.press('ArrowLeft');
     await page.locator('.slide img.active').dblclick();
     assert.ok(await page.locator('#lbZoom').isVisible());
     await page.locator('.slide img.active').dblclick();
