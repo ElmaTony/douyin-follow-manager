@@ -1,14 +1,21 @@
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { normalizeFileUrl } from './core.mjs';
 
 // Only the top-level local gallery can request navigation of its dedicated tab.
 export async function attachProfileTab(context, galleryPaths) {
-  const allowed = new Set(galleryPaths.map(p=>pathToFileURL(path.resolve(p)).href));
+  const allowed = new Set(galleryPaths.map(p=>normalizeFileUrl(pathToFileURL(path.resolve(p)).href)));
   let tab, lastUrl, opening = false;
   await context.exposeBinding('guanxuOpenProfile',async ({frame,page},sec)=>{
-    const caller = new URL(frame.url());
-    caller.hash = '';
-    if (frame !== page.mainFrame() || !allowed.has(caller.href) ||
+    let caller = '';
+    try {
+      const u = new URL(frame.url());
+      u.hash = '';
+      caller = normalizeFileUrl(u.href);
+    } catch {
+      return false;
+    }
+    if (frame !== page.mainFrame() || !allowed.has(caller) ||
         typeof sec !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(sec)) return false;
     if (opening) return false;
     opening = true;

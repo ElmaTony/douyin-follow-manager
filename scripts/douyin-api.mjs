@@ -15,6 +15,20 @@ export const COMMON = Object.freeze({
   downlink: '10',
 });
 
+export const FOLLOW_BTN_SELECTOR = 'button[data-e2e="user-info-follow-btn"]';
+export const FOLLOWING_BTN_RE = /^\s*(已关注|互相关注|相互关注|朋友)\s*$/;
+export const FOLLOW_ACTION_RE = /^\s*\+?\s*(关注|回关)\s*$/;
+export const RISK_PATTERNS = ['滑动验证', '安全验证', '验证码', '滑块', '操作过于频繁', '请求过于频繁', '稍后再试', '请稍后重试', '操作频繁'];
+
+export function inspectProfileDom(page) {
+  return page.evaluate(() => {
+    const sec = (location.pathname.split('/user/')[1] || '').split('?')[0].replace(/\/$/, '');
+    const rawId = document.body?.innerText?.match(/抖音号[:：]\s*([^\s｜|]+)/)?.[1] || '';
+    const id = rawId.replace(/IP属地[:：]?.*$/, '') || null;
+    return { sec, id, title: document.title || '' };
+  });
+}
+
 export function maxFollowingPages(expectedCount, perPage = 20) {
   return Math.max(300, Math.ceil((Number(expectedCount) || 0) / Math.max(1, perPage - 5)) + 30);
 }
@@ -55,7 +69,6 @@ export async function fetchFollowingList(
   let hasMore = true;
   let fails = 0;
   while (hasMore && pageNo < maxPages) {
-    pageNo++;
     let res;
     try {
       res = await page.evaluate(
@@ -89,6 +102,7 @@ export async function fetchFollowingList(
       break;
     }
     fails = 0;
+    pageNo++;
     if (!Array.isArray(res.followings) || ![0, 1, true, false].includes(res.has_more)) {
       throw new Error('关注列表返回不完整');
     }
@@ -130,7 +144,12 @@ export function fetchProfileOther(page, secUid, common = COMMON) {
         headers: { accept: 'application/json', referer: 'https://www.douyin.com/' },
         credentials: 'include',
       });
-      const d = await r.json();
+      let d;
+      try {
+        d = await r.json();
+      } catch {
+        throw new Error('接口返回非 JSON 内容（可能触发平台验证或登录失效）');
+      }
       const u = d?.user;
       const p = u?.punish_remind_info || null;
       return {

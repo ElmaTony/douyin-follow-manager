@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { after, test } from 'node:test';
 import { templateTag } from './gallery.mjs';
 import { confirmedStatus } from './account-checks.mjs';
-import { galleryPayload, snapshotTime, staleAtSnapshot } from './core.mjs';
+import { galleryPayload, normalizeFileUrl, snapshotTime, staleAtSnapshot } from './core.mjs';
 import { maxFollowingPages } from './douyin-api.mjs';
 
 const sources = fileURLToPath(new URL('.', import.meta.url));
@@ -82,16 +82,16 @@ export async function launch(which) {
       }
       globalThis.location = {pathname: scene.path || new URL(address).pathname};
       globalThis.document = {
-        title:'测试',
+        title: scene.docTitle ?? '测试',
         body:{innerText: scene.bodyText || '抖音号：abc'},
-        querySelector: () => (scene.allowClick ? { textContent: scene.buttonText || '互相关注' } : null),
+        querySelector: () => (scene.allowClick ? { textContent: scene.buttonText || (which === 'main' ? '关注' : '互相关注') } : null),
         querySelectorAll:(sel)=>{
           if (!scene.allowClick) {
             fs.appendFileSync('click-attempt','x');throw Error('Unexpected button access');
           }
           if (String(sel).includes('user-info-follow-btn')) {
             return [{
-              textContent: scene.buttonText || '互相关注',
+              textContent: scene.buttonText || (which === 'main' ? '关注' : '互相关注'),
               getBoundingClientRect: () => ({ width: 80, height: 32 }),
               click: () => fs.appendFileSync('clicks', which + ' ' + target + '\\n'),
             }];
@@ -782,4 +782,117 @@ test('reset-held 不重置已完成行，且能清理未挂起行的残留异常
   assert.equal(rows[1].fail_count, 0);
   assert.equal(rows[1].alt_fail_count, 0);
   assert.equal(rows[2].main_follow, 'skip_restricted');
+});
+
+test('normalizeFileUrl 统一 Windows 本地路径大小写并移除 hash', () => {
+  const norm = normalizeFileUrl('file:///F:/Project/data/review_gallery.html#account=abc');
+  if (process.platform === 'win32') {
+    assert.equal(norm, normalizeFileUrl('file:///f:/Project/data/review_gallery.html#other'));
+  } else {
+    assert.equal(norm, 'file:///F:/Project/data/review_gallery.html');
+  }
+});
+
+test('doctor 在核心 JSON 为非数组对象或缺失保护名单时准确报 FAIL 且不崩溃', () => {
+  reset();
+  write('ban_latest.json', {});
+  write('suspects_latest.json', {});
+  fs.rmSync(path.join(data, 'user_keep_list.json'));
+  const res = run('doctor', {});
+  assert.equal(res.status, 1);
+  assert.match(res.stdout, /\[FAIL\] 保留名单/);
+  assert.match(res.stdout, /\[FAIL\] 嫌疑库\(新\)/);
+  assert.match(res.stdout, /\[FAIL\] 处罚核验\(新\)/);
+});
+
+test('batch_unfollow 同名单分批续跑跳过已完成项，精确匹配列名并兼容空白与公式前缀', () => {
+  reset();
+  const s1 = 'batch-u1', s2 = 'batch-u2';
+  write('unfollow_state.json', { done: { [s1]: '2026-01-01' } });
+  write('multi.csv', [
+    '上次昵称,本次昵称,原抖音号,抖音号,sec_uid',
+    `旧一,  '=测试一 ,old1,id1,${s1}`,
+    `旧二,  '-测试二 ,old2,id2,${s2}`,
+  ].join('\n'));
+  const first = run('batch_unfollow', { allowClick: true, buttonText: '已关注', main: [1, 0], docTitle: '=测试一', bodyText: '抖音号：id1', targetNickname: '=测试一', targetId: 'id1' }, ['--list', 'data/multi.csv', '--execute', '--limit', '1']);
+  assert.equal(first.status, 0, first.stderr);
+  assert.match(read('unfollow_report.csv'), /batch-u1/);
+  assert.doesNotMatch(read('unfollow_report.csv'), /batch-u2/);
+
+  const second = run('batch_unfollow', { allowClick: true, buttonText: '已关注', main: [1, 0], docTitle: '-测试二', bodyText: '抖音号：id2', targetNickname: '-测试二', targetId: 'id2' }, ['--list', 'data/multi.csv', '--execute', '--limit', '1']);
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stdout, /已完成跳过 1 条/);
+  assert.match(read('unfollow_report.csv'), /batch-u2/);
+  assert.doesNotMatch(read('unfollow_report.csv'), /batch-u1/);
+});
+
+test('transfer 按钮文案不符不误点、大号成功即时落盘、重试及 reset-held 清理备注并保留曾用名', () => {
+  reset();
+  write('ledger.json', [{ idx: 1, sec_uid: sec, douyin_id: 'abc', nickname: '测试', main_follow: '', alt_unfollow: '', note: 'main关注复查未变(第1次, 继续下一个)', fail_count: 1 }]);
+  const mismatch = run('transfer', { allowClick: true, buttonText: '已关注', main: 0 });
+  assert.equal(mismatch.status, 0, mismatch.stderr);
+  untouched();
+  assert.equal(JSON.parse(read('ledger.json'))[0].main_follow, 'follow_fail');
+
+  reset();
+  const partial = run('transfer', { allowClick: true, main: [0, 1], failAfter: 2 });
+  assert.notEqual(partial.status, 0);
+  const afterPartial = JSON.parse(read('ledger.json'))[0];
+  assert.equal(afterPartial.main_follow, 'done');
+  assert.equal(afterPartial.alt_unfollow, '');
+
+  reset();
+  write('ledger.json', [{ idx: 1, sec_uid: sec, douyin_id: 'abc', nickname: '旧名甲', main_follow: '', alt_unfollow: '', note: 'main身份核对失败:x/y', fail_count: 2 }]);
+  const renamed = run('transfer', { allowClick: true, main: [0, 1], alt: [1, 0], targetNickname: '新名甲', targetId: 'abc' });
+  assert.equal(renamed.status, 0, renamed.stderr);
+  const doneRow = JSON.parse(read('ledger.json'))[0];
+  assert.equal(doneRow.alt_unfollow, 'done');
+  assert.equal(doneRow.fail_count, 0);
+  assert.equal(doneRow.note, '');
+  assert.deepEqual(doneRow.former_nicknames, ['旧名甲']);
+
+  write('snapshot_latest.json', { exported_at: '2026-06-01T00:00:00Z', accounts: { [sec]: { nickname: '新名甲', captions: [] } } });
+  assert.equal(run('build_suspects_latest', {}).status, 0);
+  const suspects = JSON.parse(read('suspects_latest.json'));
+  assert.equal(suspects.length, 1);
+  assert.equal(suspects[0].nickname_first, '旧名甲');
+
+  write('ledger.json', [{ idx: 1, sec_uid: sec, douyin_id: 'abc', nickname: '测试', main_follow: 'id_check_fail', alt_unfollow: '', fail_count: 3, note: 'main身份核对失败:x/y; 重试3次仍失败' }]);
+  assert.equal(run('run', {}, ['reset-held']).status, 0);
+  assert.equal(JSON.parse(read('ledger.json'))[0].note, '');
+});
+
+test('refresh 发布联动更新取关登记表、保留名单豁免重关告警，accept-refollow 可清除告警', () => {
+  reset();
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date());
+  write('unfollow_registry.json', {
+    entries: {
+      'user-alert': { nickname: '曾取关甲', douyin_id: 'ua', last_seen: '2026-01-01', unfollowed_since: '2026-01-02' },
+      'user-keep': { nickname: '永久保留乙', douyin_id: 'uk', last_seen: '2026-01-01', unfollowed_since: '2026-01-02' },
+    }
+  });
+  write('user_keep_list.json', { keeps: [{ sec_uid: 'user-keep', nickname: '永久保留乙' }] });
+  const scene = {
+    count: 2, main: 1, posts: { status_code: 0, aweme_list: [] },
+    listResponse: {
+      status_code: 0, has_more: 0,
+      followings: [
+        { sec_uid: 'user-alert', nickname: '重关新名甲', unique_id: 'ua', aweme_count: 1 },
+        { sec_uid: 'user-keep', nickname: '永久保留乙', unique_id: 'uk', aweme_count: 1 },
+      ],
+    },
+  };
+  const refreshed = run('run', scene, ['refresh']);
+  assert.equal(refreshed.status, 0, refreshed.stderr);
+  const reg = JSON.parse(read('unfollow_registry.json'));
+  assert.equal(reg.refollow_alerts.length, 1);
+  assert.equal(reg.refollow_alerts[0].sec_uid, 'user-alert');
+  assert.ok(fs.existsSync(path.join(data, `main_following_${today}.json`)));
+
+  const accepted = run('run', {}, ['accept-refollow', '--all']);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.match(accepted.stdout, /移出 1 位/);
+  const regAfter = JSON.parse(read('unfollow_registry.json'));
+  assert.equal(regAfter.refollow_alerts.length, 0);
+  assert.ok(!regAfter.entries['user-alert']);
 });

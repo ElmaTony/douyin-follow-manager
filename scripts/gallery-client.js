@@ -342,7 +342,9 @@ function updateMarkedRow(row,sec,mark) {
     updateExport();
     counters();
     const nextSec = visible[Math.min(index,visible.length - 1)].sec_uid;
-    $('content').querySelector('[data-sec="' + CSS.escape(nextSec) + '"] [data-mark="'  + (mark || 'keep') + '"]')?.focus({preventScroll:true});
+    if (typeof lbEl === 'undefined' || !lbEl.open) {
+      $('content').querySelector('[data-sec="' + CSS.escape(nextSec) + '"] [data-mark="'  + (mark || 'keep') + '"]')?.focus({preventScroll:true});
+    }
   } else {
     row.classList.toggle('keep', mark === 'keep');
     row.classList.toggle('unf', mark === 'unf');

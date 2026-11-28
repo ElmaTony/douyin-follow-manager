@@ -21,7 +21,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
-[assembly: AssemblyVersion("0.5.3.0")]
+[assembly: AssemblyVersion("0.5.4.0")]
 [assembly: AssemblyTitle("关序")]
 [assembly: AssemblyProduct("关序")]
 [assembly: AssemblyDescription("关注迁移与审阅工具")]
@@ -52,7 +52,7 @@ namespace FollowDesk {
         public LedgerRow[] ledger {get;set;} public Snapshot snapshot {get;set;} public bool canCompare {get;set;}
         public Dictionary<string,int?> galleries {get;set;} public string report {get;set;}
         public string mainOwner {get;set;} public string altOwner {get;set;}
-        public int? registry {get;set;} public string[] warnings {get;set;}
+        public int? registry {get;set;} public int refollowAlerts {get;set;} public string[] warnings {get;set;}
     }
     internal sealed class Desk {
         public readonly Window Window;
@@ -64,7 +64,7 @@ namespace FollowDesk {
         readonly List<Button> exclusiveButtons = new List<Button>();
         readonly Dictionary<string,string> galleryButtons = new Dictionary<string,string> {{"Review","review"},{"Stale","stale"},{"Suspect","suspect"}};
         Overview data;
-        bool busy, refreshing, refreshPending, stopping, galleryOpen, galleryStopping, closeRequested;
+        bool busy, refreshing, refreshPending, stopping, galleryOpen, galleryStopping, closeRequested, windowClosed;
         internal Desk(string projectRoot) {
             root=projectRoot; runner=new TaskRunner(root); reader=new TaskRunner(root); galleryRunner=new TaskRunner(root);
             using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("FollowDesk.Window")) Window=(Window)XamlReader.Load(stream);
@@ -98,6 +98,8 @@ namespace FollowDesk {
             ExclusiveButton("Online",()=>Confirm("更新审阅数据？","将使用大号读取关注列表和作品，核验后更新本地快照和三个画廊。关注较多时可能需要较长时间。")
                 ? Run("在线更新审阅数据","refresh") : Task.FromResult(0));
             ExclusiveButton("Registry",()=>Run("刷新大号取关登记表","registry"));
+            LocalButton("AcceptRefollow",()=>Confirm("确认保留重新关注的账号？","将把当前重新出现在大号关注中的账号从取关登记表移出，后续不再提醒或拦截。")
+                ? Run("确认重新关注账号","accept-refollow","--all") : Task.FromResult(0));
             ExclusiveButton("Transfer",()=>Confirm("开始增量迁移？","将核对当前登录的两个账号，执行大号关注和小号取关。")
                 ? Run("增量迁移","transfer") : Task.FromResult(0));
             LocalButton("Preview",()=>ListAction("Preview"));
@@ -124,8 +126,8 @@ namespace FollowDesk {
             Get<CheckBox>("PendingOnly").Unchecked+=(s,e)=>Filter();
             timer.Tick+=(s,e)=>Flush();
             Window.Loaded+=async(s,e)=>{timer.Start(); await Refresh();};
-            Window.Closing+=(s,e)=>{ if(busy || galleryOpen) { e.Cancel=true; Stop(true); } };
-            Window.Closed+=(s,e)=>{timer.Stop(); reader.Dispose(); runner.Dispose(); galleryRunner.Dispose();};
+            Window.Closing+=(s,e)=>{ if(busy || galleryOpen) { e.Cancel=true; Stop(true,e); } };
+            Window.Closed+=(s,e)=>{windowClosed=true; timer.Stop(); reader.Dispose(); runner.Dispose(); galleryRunner.Dispose();};
         }
         [DllImport("dwmapi.dll")]
         static extern int DwmSetWindowAttribute(IntPtr hwnd,int attribute,ref int value,int size);
@@ -262,6 +264,10 @@ namespace FollowDesk {
             rebuild.IsEnabled=canExclusive && data!=null && data.snapshot!=null;
             rebuild.ToolTip=data!=null && data.snapshot!=null ? "用已采集的本地数据重建画廊" : "先在线更新一次，生成关注快照";
             Get<Button>("ResetHeld").IsEnabled=canLocal && data!=null && data.ledger!=null && data.ledger.Any(r=>r.Retryable);
+            bool hasAlerts=data!=null && data.refollowAlerts>0;
+            var accept=Get<Button>("AcceptRefollow");
+            accept.Visibility=hasAlerts ? Visibility.Visible : Visibility.Collapsed;
+            accept.IsEnabled=canLocal && hasAlerts;
             foreach(var name in galleryButtons.Keys) {
                 int? count=null;
                 if(data!=null && data.galleries!=null) data.galleries.TryGetValue(galleryButtons[name],out count);
@@ -271,10 +277,16 @@ namespace FollowDesk {
             Get<Button>("Stop").Visibility=(busy || galleryOpen)?Visibility.Visible:Visibility.Collapsed;
             Get<Button>("Refresh").IsEnabled=canLocal;
         }
-        void Stop(bool close) {
+        void Stop(bool close, CancelEventArgs closingArgs = null) {
             bool stopTask=busy && !stopping;
             bool stopGallery=galleryOpen && !galleryStopping && (close || !busy);
-            if(!stopTask && !stopGallery) { if(close) closeRequested=true; return; }
+            if(!stopTask && !stopGallery) {
+                if(close) {
+                    if(closingArgs!=null && !busy && !galleryOpen) { closingArgs.Cancel=false; return; }
+                    closeRequested=true;
+                }
+                return;
+            }
             string detail=stopTask && !stopGallery && galleryOpen
                 ? "将结束本次本地任务，已打开的审阅画廊将保持运行。"
                 : "将结束本次任务及其打开的浏览器。已发生的账号操作可能需要重新核对。";
@@ -283,7 +295,11 @@ namespace FollowDesk {
             stopGallery=galleryOpen && !galleryStopping && (close || !busy);
             if(!stopTask && !stopGallery) {
                 if(close) {
-                    if(!busy && !galleryOpen) { Window.Close(); return; }
+                    if(!busy && !galleryOpen) {
+                        if(closingArgs!=null) { closingArgs.Cancel=false; return; }
+                        if(!windowClosed) Window.Dispatcher.BeginInvoke(new Action(Window.Close));
+                        return;
+                    }
                     closeRequested=true;
                 }
                 Controls();
@@ -338,8 +354,8 @@ namespace FollowDesk {
             } finally {
                 Flush(); galleryOpen=false; galleryStopping=false; Controls();
             }
-            if(closeRequested) { if(!busy) Window.Close(); }
-            else await Refresh();
+            if(closeRequested) { if(!busy && !windowClosed) GC.KeepAlive(Window.Dispatcher.BeginInvoke(new Action(Window.Close))); }
+            else if(!windowClosed) await Refresh();
         }
         async Task Run(string title,params string[] args) {
             if(busy || refreshing) return;
@@ -354,13 +370,14 @@ namespace FollowDesk {
             try {
                 int code=await runner.Run(new[]{"scripts/run.mjs"}.Concat(args).ToArray(),output,output);
                 string result=stopping?"已中止":code!=0?"失败（退出码 "+code+"）":warn!=0?"完成，有提醒":"已完成";
-                Status(title+" · "+result); lines.Enqueue(title+" · "+result);
-            } catch(Exception ex){Status(title+" · 启动或执行失败"); lines.Enqueue(ex.Message);}
+                Status(galleryOpen ? "打开审阅画廊 · 正在运行（"+title+"："+result+"）" : title+" · "+result);
+                lines.Enqueue(title+" · "+result);
+            } catch(Exception ex){Status(galleryOpen ? "打开审阅画廊 · 正在运行（"+title+"：启动或执行失败）" : title+" · 启动或执行失败"); lines.Enqueue(ex.Message);}
             finally {
                 Flush(); busy=false; stopping=false; Controls();
             }
-            if(closeRequested) { if(!galleryOpen) Window.Close(); }
-            else await Refresh();
+            if(closeRequested) { if(!galleryOpen && !windowClosed) GC.KeepAlive(Window.Dispatcher.BeginInvoke(new Action(Window.Close))); }
+            else if(!windowClosed) await Refresh();
         }
         void Flush() {
             if(lines.IsEmpty) return;
@@ -381,7 +398,7 @@ namespace FollowDesk {
             Get<TextBlock>("LogEmpty").Visibility=Visibility.Collapsed;
         }
         async Task Refresh() {
-            if(busy) return;
+            if(busy || windowClosed) return;
             if(refreshing) { refreshPending=true; return; }
             do {
                 refreshPending=false;
@@ -397,7 +414,7 @@ namespace FollowDesk {
                     data=null; ShowData();
                     Get<TextBlock>("Warnings").Text="本地数据读取失败："+ex.Message;
                 } finally {refreshing=false; Controls();}
-            } while(refreshPending && !busy && !closeRequested);
+            } while(refreshPending && !busy && !closeRequested && !windowClosed);
         }
         void ShowData() {
             ShowProgress(data==null?null:data.ledger);

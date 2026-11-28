@@ -5,7 +5,7 @@
  *  - 已知账号但台账已完成(alt_unfollow=done 等)且现在仍被小号关注 -> 复位(用户重新关注)
  */
 import { loadLedger, saveLedger } from './lib.mjs';
-import { isLedgerDone, readJson } from './core.mjs';
+import { isLedgerDone, normText, readJson } from './core.mjs';
 import fs from 'node:fs';
 
 const IN = process.argv[2];
@@ -19,17 +19,31 @@ const addedRows = [], refollowedRows = [];
 for (const it of fresh) {
   const known = bySec.get(it.sec_uid);
   if (known) {
-    if (it.nickname) known.nickname = it.nickname;
+    if (it.nickname) {
+      if (known.nickname && normText(known.nickname) !== normText(it.nickname)) {
+        if (!Array.isArray(known.former_nicknames)) known.former_nicknames = [];
+        if (!known.former_nicknames.some((n) => normText(n) === normText(known.nickname))) {
+          known.former_nicknames.push(known.nickname);
+        }
+      }
+      known.nickname = it.nickname;
+    }
     const latestId = it.unique_id || it.short_id;
     if (latestId) known.douyin_id = latestId;
     if (it.short_id && !known.legacy_short_id) known.legacy_short_id = it.short_id;
     if (it.follower_count != null) known.follower_count = it.follower_count;
     if (it.signature != null) known.signature = it.signature;
     if (isLedgerDone(known)) {
+      const inRegistry = Object.hasOwn(registry, known.sec_uid);
+      if (inRegistry) {
+        known.main_follow = '';
+        known.main_follow_time = '';
+        known.fail_count = 0;
+      }
       known.alt_unfollow = '';
       known.alt_unfollow_time = '';
       known.alt_fail_count = 0;
-      known.note = Object.hasOwn(registry, known.sec_uid)
+      known.note = inRegistry
         ? '发现小号重新关注(曾在大号取关登记)'
         : '发现小号重新关注, 再次核对转移';
       refollowedRows.push(known);

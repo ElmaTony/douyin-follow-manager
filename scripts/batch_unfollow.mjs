@@ -31,9 +31,23 @@ const REPORT = option('--report', EXECUTE ? 'data/unfollow_report.csv' : 'data/u
 
 if (!LIST) { console.error('用法: node scripts/batch_unfollow.mjs --list <清单csv> [--execute] [--limit N]'); process.exit(1); }
 
-const list = loadUnfollowList(LIST, LIMIT);
+const rawState = EXECUTE && fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : null;
+const listPath = path.resolve(LIST);
+const state = {
+  done: rawState?.done && typeof rawState.done === 'object' && !Array.isArray(rawState.done) ? rawState.done : {},
+  skipped: rawState?.skipped && typeof rawState.skipped === 'object' && !Array.isArray(rawState.skipped) ? rawState.skipped : {},
+  failed: rawState?.failed && typeof rawState.failed === 'object' && !Array.isArray(rawState.failed) ? rawState.failed : {},
+  listFile: listPath,
+};
+const completedIds = EXECUTE && !args.includes('--rerun-done') && rawState?.listFile === listPath
+  ? new Set([...Object.keys(state.done), ...Object.keys(state.skipped)])
+  : null;
+const list = loadUnfollowList(LIST, LIMIT, { completedIds });
 const items = list.items;
-console.log('清单总行数 ' + list.total + ' | 重复 ' + list.duplicate + ' | 标记保留跳过 ' + list.excluded + ' 条 | 待处理 ' + items.length + ' 条');
+console.log(
+  '清单总行数 ' + list.total + ' | 重复 ' + list.duplicate + ' | 标记保留跳过 ' + list.excluded + ' 条' +
+  (list.completed ? ' | 已完成跳过 ' + list.completed + ' 条' : '') + ' | 待处理 ' + items.length + ' 条'
+);
 if (args.includes('--preview')) {
   for (const item of items) console.log(item.nickname + '　' + item.douyin_id);
   process.exit(0);
@@ -46,7 +60,6 @@ function toReportCsv(rows) {
   return reportCsvText(cols, rows.map((r) => [r.nickname, r.douyin_id, r.sec_uid, r.result, r.detail]));
 }
 
-const state = EXECUTE && fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : { done: {}, skipped: {}, failed: {} };
 if (EXECUTE) readRegistry();
 const report = [];
 fs.mkdirSync(path.dirname(REPORT), { recursive: true });
@@ -56,7 +69,7 @@ try {
   for (const item of items) {
     const { code, detail } = await processUnfollow(m.page, item, { execute: EXECUTE });
     report.push({ ...item, result: code === 'done' ? '取关成功' : code === 'absent' ? '本就未关注' : detail, detail });
-    writeTextAtomic(REPORT, toReportCsv(report));
+    if (report.length % 10 === 0) writeTextAtomic(REPORT, toReportCsv(report));
     if (EXECUTE) {
       for (const key of ['done', 'skipped', 'failed']) delete state[key][item.sec_uid];
       const key = code === 'done' ? 'done' : code === 'absent' ? 'skipped' : 'failed';
@@ -68,5 +81,6 @@ try {
     if (code === 'failed') process.exitCode = 1;
   }
 } finally {
+  if (report.length > 0) writeTextAtomic(REPORT, toReportCsv(report));
   await m.context.close().catch(() => {});
 }

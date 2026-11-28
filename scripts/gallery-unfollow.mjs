@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { galleryPayload, writeJson } from './core.mjs';
+import { galleryPayload, normalizeFileUrl, writeJson } from './core.mjs';
 import { sleep } from './lib.mjs';
 import { processUnfollow, verifyMain, readRegistry, protectedAccounts } from './unfollow-action.mjs';
 
@@ -46,8 +46,8 @@ function restoreBatch() {
 
 const cleanUrl = url => url.split('#')[0];
 export async function attachGalleryUnfollow(context,paths, overrides={}) {
-  const services={backgroundTab,verifyMain,processUnfollow,...overrides};
-  const allowed = new Set(paths.map(p=>pathToFileURL(path.resolve(p)).href));
+  const services={backgroundTab,verifyMain,processUnfollow,itemDelayMs:()=>1200+Math.floor(Math.random()*1000),...overrides};
+  const allowed = new Set(paths.map(p=>normalizeFileUrl(pathToFileURL(path.resolve(p)).href)));
   let job=restoreBatch(), snapshotSignature, snapshotAtOnDisk;
   const checkpoint=()=>writeJson(lastBatchFile,job);
   function snapshotMatches(stamp) {
@@ -65,7 +65,7 @@ export async function attachGalleryUnfollow(context,paths, overrides={}) {
     for (let attempt=0;attempt<12;attempt++) {
       const tabs=[...new Set([source,...context.pages()])];
       for (const tab of tabs) {
-        if (tab.isClosed() || !allowed.has(cleanUrl(tab.url()))) continue;
+        if (tab.isClosed() || !allowed.has(normalizeFileUrl(tab.url()))) continue;
         const records=await tab.evaluate(({stamp,ids})=>{
           if (typeof snapshotAt==='undefined' || snapshotAt!==stamp) return null;
           const marks=readMarks(ids);
@@ -94,6 +94,10 @@ export async function attachGalleryUnfollow(context,paths, overrides={}) {
         if (!await stillPending()) Object.assign(job.rows[i],{code:'failed',detail:'标记已变化或画廊已关闭'});
         else Object.assign(job.rows[i],await services.processUnfollow(tab,item,{execute:true,stillPending}));
         checkpoint();
+        if (i + 1 < items.length) {
+          const delay = typeof services.itemDelayMs === 'function' ? services.itemDelayMs() : services.itemDelayMs;
+          if (delay > 0) await sleep(delay);
+        }
       }
     } catch(error) {
       job.message=/验证|大号身份异常|无法确认目标账号|快照已更新|后台处理页|画廊已关闭/.test(error.message) ? error.message.split('\n')[0].slice(0,90) : '处理已中断，请检查网络和大号登录后重试';
@@ -109,13 +113,14 @@ export async function attachGalleryUnfollow(context,paths, overrides={}) {
   }
   let starting=false;
   await context.exposeBinding('guanxuUnfollow',async ({frame,page},action,input)=>{
-    const caller=cleanUrl(frame.url());
+    const rawCaller=cleanUrl(frame.url());
+    const caller=normalizeFileUrl(rawCaller);
     if (frame!==page.mainFrame() || !allowed.has(caller)) throw new Error('请从关序工作台打开画廊');
     if (action==='status') return {...job,receipts:receipts()};
     if (action!=='start' || starting || job.running) throw new Error('已有取关任务，请查看进度');
     starting=true;
     try {
-      const payload=galleryPayload(fs.readFileSync(fileURLToPath(caller),'utf8'));
+      const payload=galleryPayload(fs.readFileSync(fileURLToPath(rawCaller),'utf8'));
       if (payload.snapshotAt!==input?.stamp || !snapshotMatches(payload.snapshotAt)) throw new Error('快照已更新，请刷新画廊');
       const selected=input.rows;
       if (!Array.isArray(selected) || !selected.length || selected.length>payload.union.length) throw new Error('本批名单无效，请重新核对');

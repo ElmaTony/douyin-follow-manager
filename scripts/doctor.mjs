@@ -41,24 +41,28 @@ if (Array.isArray(ledger)) {
 } else add('FAIL', '台账 ledger.json', '缺失或解析失败');
 
 const reg = j(path.join(DATA, 'unfollow_registry.json'));
-if (reg?.entries) {
+if (reg && reg.entries && typeof reg.entries === 'object' && !Array.isArray(reg.entries)) {
   const n = Object.keys(reg.entries).length;
   const alerts = Array.isArray(reg.refollow_alerts) ? reg.refollow_alerts.length : 0;
   add(alerts > 0 ? 'WARN' : 'PASS', '已取关登记表', alerts > 0 ? `${n} 人 (疑似重新关注 ${alerts} 人)` : `${n} 人`);
-} else add('FAIL', '已取关登记表', 'unfollow_registry.json 缺失');
+} else add('FAIL', '已取关登记表', 'unfollow_registry.json 缺失或格式错误');
 
 const keep = j(path.join(DATA, 'user_keep_list.json'));
-add(keep?.keeps ? 'PASS' : 'WARN', '保留名单', keep?.keeps ? `${keep.keeps.length} 人` : '缺失');
+add(Array.isArray(keep?.keeps) ? 'PASS' : 'FAIL', '保留名单', Array.isArray(keep?.keeps) ? `${keep.keeps.length} 人` : 'user_keep_list.json 缺失或格式错误');
 
 const snapLatest = j(path.join(DATA, 'snapshot_latest.json'));
 if (snapLatest?.exported_at) {
   const hours = (Date.now() - new Date(snapLatest.exported_at).getTime()) / 3600000;
   add(hours < 72 ? 'PASS' : 'WARN', '最新快照', `${Object.keys(snapLatest.accounts || {}).length} 人, ${hours.toFixed(1)} 小时前`);
 } else add('WARN', '最新快照', 'snapshot_latest.json 缺失');
-const susLatest = j(path.join(DATA, 'suspects_latest.json'));
-add(Array.isArray(susLatest) ? 'PASS' : 'WARN', '嫌疑库(新)', susLatest ? `${susLatest.length} 条` : '缺失');
-const banLatest = j(path.join(DATA, 'ban_latest.json')) || [];
-add(Array.isArray(banLatest) ? 'PASS' : 'FAIL', '处罚核验(新)', `${banLatest.length} 人, 处罚 ${banLatest.filter((b) => b.status === 'banned').length}`);
+const susFile = path.join(DATA, 'suspects_latest.json');
+const susRaw = j(susFile);
+const susLatest = Array.isArray(susRaw) ? susRaw : [];
+add(Array.isArray(susRaw) ? 'PASS' : (fs.existsSync(susFile) ? 'FAIL' : 'WARN'), '嫌疑库(新)', Array.isArray(susRaw) ? `${susRaw.length} 条` : (fs.existsSync(susFile) ? '格式错误' : '缺失'));
+const banRaw = j(path.join(DATA, 'ban_latest.json'));
+const banOk = Array.isArray(banRaw);
+const banLatest = banOk ? banRaw : [];
+add(banOk ? 'PASS' : 'FAIL', '处罚核验(新)', banOk ? `${banLatest.length} 人, 处罚 ${banLatest.filter((b) => b.status === 'banned').length}` : 'ban_latest.json 缺失或格式错误');
 const verifiedAccounts = new Map(banLatest.map((b) => [b.sec_uid, b]));
 const bannedLatest = new Set(banLatest.filter((b) => b.status === 'banned').map((b) => b.sec_uid));
 const accs = Object.entries(snapLatest?.accounts || {});

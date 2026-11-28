@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
 
@@ -48,6 +49,7 @@ namespace FollowDesk {
         static string cachedNode;
         readonly string root;
         ChildJob job;
+        int running;
         public TaskRunner(string projectRoot) { root = projectRoot; }
 
         static string CombineDir(string baseDir, string sub) {
@@ -84,15 +86,18 @@ namespace FollowDesk {
                 var info = new ProcessStartInfo(exe, "-p \"process.versions.node\"") {
                     UseShellExecute = false, CreateNoWindow = true,
                     RedirectStandardOutput = true, RedirectStandardError = true,
-                    StandardOutputEncoding = Encoding.UTF8
+                    StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
                 };
                 using (var proc = Process.Start(info)) {
                     if (proc == null) return false;
-                    string ver = proc.StandardOutput.ReadToEnd().Trim();
+                    var outTask = proc.StandardOutput.ReadToEndAsync();
+                    var errTask = proc.StandardError.ReadToEndAsync();
                     if (!proc.WaitForExit(3000)) {
                         try { proc.Kill(); } catch { }
                         return false;
                     }
+                    Task.WaitAll(new Task[] { outTask, errTask }, 1000);
+                    string ver = outTask.IsCompleted ? outTask.Result.Trim() : "";
                     if (proc.ExitCode != 0 || String.IsNullOrEmpty(ver)) return false;
                     int dot = ver.IndexOf('.');
                     string majorText = dot > 0 ? ver.Substring(0, dot) : ver;
@@ -133,34 +138,47 @@ namespace FollowDesk {
             return text.Append('\\',slashes*2).Append('"').ToString();
         }
         public async Task<int> Run(string[] args, Action<string> stdout, Action<string> stderr) {
-            if (job != null) throw new InvalidOperationException("已有任务正在运行。");
-            var info = new ProcessStartInfo(NodePath(), String.Join(" ", args.Select(Quote))) {
-                WorkingDirectory=root, UseShellExecute=false, CreateNoWindow=true,
-                RedirectStandardOutput=true, RedirectStandardError=true,
-                StandardOutputEncoding=Encoding.UTF8, StandardErrorEncoding=Encoding.UTF8
-            };
-            using (var proc = new Process {StartInfo=info})
-            using (var owned = new ChildJob()) {
-                proc.OutputDataReceived += (s,e) => { if(e.Data != null) stdout(e.Data); };
-                proc.ErrorDataReceived += (s,e) => { if(e.Data != null) stderr(e.Data); };
-                if (!proc.Start()) throw new IOException("无法启动任务。");
-                if (!ChildJob.AssignProcessToJobObject(owned,proc.Handle) && !proc.HasExited) {
-                    int code = Marshal.GetLastWin32Error();
-                    proc.Kill(); proc.WaitForExit();
-                    throw new System.ComponentModel.Win32Exception(code,"无法管理本次任务的子进程。");
+            if (Interlocked.CompareExchange(ref running, 1, 0) != 0) throw new InvalidOperationException("已有任务正在运行。");
+            try {
+                string node = await Task.Run((Func<string>)NodePath);
+                var info = new ProcessStartInfo(node, String.Join(" ", args.Select(Quote))) {
+                    WorkingDirectory=root, UseShellExecute=false, CreateNoWindow=true,
+                    RedirectStandardOutput=true, RedirectStandardError=true,
+                    StandardOutputEncoding=Encoding.UTF8, StandardErrorEncoding=Encoding.UTF8
+                };
+                using (var proc = new Process {StartInfo=info})
+                using (var owned = new ChildJob()) {
+                    proc.OutputDataReceived += (s,e) => { if(e.Data != null) stdout(e.Data); };
+                    proc.ErrorDataReceived += (s,e) => { if(e.Data != null) stderr(e.Data); };
+                    if (!proc.Start()) throw new IOException("无法启动任务。");
+                    if (!ChildJob.AssignProcessToJobObject(owned,proc.Handle) && !proc.HasExited) {
+                        int code = Marshal.GetLastWin32Error();
+                        proc.Kill(); proc.WaitForExit();
+                        throw new System.ComponentModel.Win32Exception(code,"无法管理本次任务的子进程。");
+                    }
+                    job=owned;
+                    try {
+                        proc.BeginOutputReadLine(); proc.BeginErrorReadLine();
+                        await Task.Run((Action)proc.WaitForExit);
+                        return proc.ExitCode;
+                    } finally { job=null; }
                 }
-                job=owned;
-                try {
-                    proc.BeginOutputReadLine(); proc.BeginErrorReadLine();
-                    await Task.Run((Action)proc.WaitForExit);
-                    return proc.ExitCode;
-                } finally { job=null; }
+            } finally {
+                Interlocked.Exchange(ref running, 0);
             }
         }
         public void Stop() {
             ChildJob current = job;
-            if (current != null && !ChildJob.TerminateJobObject(current,1223) && job != null) throw new System.ComponentModel.Win32Exception();
+            if (current == null) return;
+            try {
+                if (!ChildJob.TerminateJobObject(current,1223) && job != null) throw new System.ComponentModel.Win32Exception();
+            } catch (ObjectDisposedException) { }
         }
-        public void Dispose() { if (job != null) job.Dispose(); }
+        public void Dispose() {
+            ChildJob current = job;
+            if (current != null) {
+                try { ChildJob.TerminateJobObject(current,1223); } catch { }
+            }
+        }
     }
 }

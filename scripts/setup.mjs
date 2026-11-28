@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { launch } from './lib.mjs';
 import { selfInfo } from './account-checks.mjs';
+import { writeJson } from './core.mjs';
 import { binding, dataDir, initialize } from './local-state.mjs';
 
 const role = process.argv[2];
@@ -24,7 +25,11 @@ try {
   if (current && current.sec_uid !== user.sec_uid) throw new Error('此目录已绑定另一账号。请用新的程序目录管理另一组账号。');
   const entered = await terminal.question(label + '：' + user.nickname + '。请输入显示的账号编号 ' + user.short_id + ' 以确认绑定：');
   if (entered.trim() !== user.short_id) throw new Error('编号不符，绑定已取消。');
-  if (!current) fs.writeFileSync(path.join(dataDir, 'account.' + role + '.json'),
-    JSON.stringify({short_id:user.short_id, sec_uid:user.sec_uid}), {flag:'wx'});
+  writeJson(path.join(dataDir, 'account.' + role + '.json'), {
+    short_id: user.short_id,
+    sec_uid: user.sec_uid,
+    nickname: user.nickname || '',
+    douyin_id: user.unique_id || user.short_id,
+  });
   console.log(label + '身份已确认。');
 } finally { terminal.close(); await browser.context.close(); }

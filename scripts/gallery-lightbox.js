@@ -113,6 +113,10 @@ lbEl.addEventListener('close',()=>{
   const row=$('content').querySelector('[data-sec="'+CSS.escape(lb.sec)+'"]');
   const cover=row?.querySelectorAll('.cover')[Math.min(lb.idx,2)] || row?.querySelector('.cover');
   if (cover) { cover.focus({preventScroll:true}); cover.scrollIntoView({block:'nearest'}); }
+  else {
+    const fallback=$('content').querySelector('.card .cover, .card [data-mark]') || $('markFilter');
+    fallback?.focus({preventScroll:true});
+  }
 });
 function move(delta){
   const d=byId.get(lb.sec);if(!d)return;

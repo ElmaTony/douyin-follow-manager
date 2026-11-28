@@ -105,6 +105,7 @@ try {
     Assert-Ui ($null -ne $window.Icon -and [object]::ReferenceEquals($window.Icon,$window.FindName('BrandIcon').Source)) 'Header and title bar must share the application icon'
     if ($registryData.refollow_alerts -and $registryData.refollow_alerts.Count -gt 0) {
         Assert-Ui ($window.FindName('Warnings').Text.Contains('重新出现在大号关注中')) 'Refollow alert warning is missing on dashboard'
+        Assert-Ui ($window.FindName('AcceptRefollow').Visibility -eq 'Visible' -and $window.FindName('AcceptRefollow').IsEnabled) 'AcceptRefollow button should be visible and enabled when refollow alerts exist'
     }
     $screen = Join-Path $testDir 'overview.png'
     Save-Window $screen
@@ -180,6 +181,10 @@ try {
         Wait-Ui { $task.IsCompleted }
         Assert-Ui ($task.Result -ne 0 -and $worker.WaitForExit(3000)) 'Stopped task left a worker running'
     } finally { $runner.Dispose() }
+    $cancelArgs = [System.ComponentModel.CancelEventArgs]::new($true)
+    $stopMethod = $desk.GetType().GetMethod('Stop', $flags)
+    $null = $stopMethod.Invoke($desk, [object[]]@($true, $cancelArgs))
+    Assert-Ui (!$cancelArgs.Cancel) 'Stop during Window.Closing when idle should clear Cancel without calling Close()'
     Write-Output "PASS: dashboard, refollow alerts, ledger search, pending filter, reset-held, self-check, warning output, preview, invalid input, minimum size, child-process cancellation"
     if ($KeepScreenshots -and !$useFixture) { Write-Output $screen }
 } finally {

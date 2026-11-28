@@ -8,9 +8,14 @@ const previous = readJson('data/snapshot_previous.json')?.accounts || {};
 const ledger = readJson('data/ledger.json') || [];
 const originalNames = new Map();
 for (const row of ledger) {
-  if (!row.sec_uid || !row.nickname) continue;
-  if (!originalNames.has(row.sec_uid)) originalNames.set(row.sec_uid,[]);
-  originalNames.get(row.sec_uid).push(row.nickname);
+  if (!row.sec_uid) continue;
+  const names = [
+    ...(Array.isArray(row.former_nicknames) ? row.former_nicknames : []),
+    ...(row.nickname ? [row.nickname] : []),
+  ].filter(Boolean);
+  if (!names.length) continue;
+  if (!originalNames.has(row.sec_uid)) originalNames.set(row.sec_uid, []);
+  originalNames.get(row.sec_uid).push(...names);
 }
 const out = [];
 for (const [sec, a] of Object.entries(snap.accounts)) {

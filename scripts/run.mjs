@@ -16,6 +16,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isLedgerDone, isLedgerHeld, readJson, writeJson } from './core.mjs';
+import { acceptRefollows } from './update_registry.mjs';
 
 const S = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(S, '..');
@@ -80,7 +81,7 @@ switch (cmd) {
   case 'preview':
   case 'unfollow': {
     if (!rest[0]) { console.error('用法: node run.mjs unfollow <清单csv> [--execute]'); process.exit(1); }
-    run('batch_unfollow.mjs', ['--list', rest[0], ...rest.slice(1), ...(cmd === 'preview' ? ['--preview'] : [])]);
+    run('batch_unfollow.mjs', ['--list', path.resolve(rest[0]), ...rest.slice(1), ...(cmd === 'preview' ? ['--preview'] : [])]);
     break;
   }
   case 'rebuild':
@@ -89,6 +90,17 @@ switch (cmd) {
   case 'registry':
     run('update_registry.mjs');
     break;
+  case 'accept-refollow': {
+    const all = rest.includes('--all');
+    const ids = rest.filter((a) => !a.startsWith('--'));
+    if (!all && !ids.length) {
+      console.error('用法: node run.mjs accept-refollow --all | <sec_uid...>');
+      process.exit(1);
+    }
+    const removed = acceptRefollows({ dataDir: path.join(ROOT, 'data'), ids: all ? null : ids });
+    console.log(`已确认重新关注并从取关登记表移出 ${removed} 位博主。`);
+    break;
+  }
   case 'reset-held': {
     const ledgerFile = path.join(ROOT, 'data', 'ledger.json');
     const rows = readJson(ledgerFile);
@@ -117,7 +129,10 @@ switch (cmd) {
         if ((r.fail_count || 0) > 0) { r.fail_count = 0; changed = true; }
         if ((r.alt_fail_count || 0) > 0) { r.alt_fail_count = 0; changed = true; }
       }
-      if (changed) count++;
+      if (changed) {
+        r.note = '';
+        count++;
+      }
     }
     if (count > 0) writeJson(ledgerFile, rows, 2);
     console.log(`已重置 ${count} 条异常或挂起记录为待处理。`);
@@ -142,6 +157,7 @@ switch (cmd) {
   preview <名单>             本地预览 CSV / 画廊决定名单
   unfollow <名单> [--execute] 批量取关(默认在线核对)
   registry                 刷新已取关登记表 + 检查重新关注
+  accept-refollow --all    确认重新关注的账号并从取关登记表移出
 
 当前 node: ${process.version}
 项目根: ${ROOT}`);

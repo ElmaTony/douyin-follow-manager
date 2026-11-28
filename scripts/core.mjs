@@ -161,3 +161,10 @@ export function reviewableRows(payload) {
   const locked = new Set(payload.protectedIds);
   return payload.data.filter(row => !row.badgeFix && !locked.has(row.sec_uid));
 }
+
+export const normText = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+
+export function normalizeFileUrl(url) {
+  const clean = String(url || '').split('#')[0];
+  return process.platform === 'win32' && clean.startsWith('file:///') ? clean.toLowerCase() : clean;
+}

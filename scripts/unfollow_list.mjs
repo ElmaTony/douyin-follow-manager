@@ -1,10 +1,19 @@
 import fs from 'node:fs';
 import { parseCsv } from './core.mjs';
 
+const unescapeFormula = (s) => (/^'(?=\s*[=+@-])/.test(s) ? s.slice(1) : s);
+
 function csvItems(text) {
   const [header = [], ...rows] = parseCsv(text);
-  const col = names => header.findIndex(cell => names.some(name => cell.trim().includes(name)));
-  const nick = col(['昵称']), id = col(['抖音号']), sec = col(['sec_uid']), link = col(['主页链接', '链接']), keep = col(['保留']);
+  const col = (exactNames, fallbackNames = exactNames) => {
+    const exact = header.findIndex(cell => exactNames.includes(cell.trim()));
+    return exact >= 0 ? exact : header.findIndex(cell => fallbackNames.some(name => cell.trim().includes(name)));
+  };
+  const nick = col(['昵称', '本次昵称'], ['昵称']);
+  const id = col(['抖音号', '本次抖音号'], ['抖音号']);
+  const sec = col(['sec_uid', '稳定账号标识'], ['sec_uid']);
+  const link = col(['主页链接', '链接']);
+  const keep = col(['保留', '保留(填1则跳过)'], ['保留']);
   if (nick < 0 || id < 0 || (sec < 0 && link < 0)) throw new Error('CSV 需要昵称、抖音号，以及 sec_uid 或主页链接列');
   return rows.map((r, i) => {
     const linkedId = (r[link] || '').trim().match(/^https?:\/\/(?:www\.)?douyin\.com\/user\/([\w-]+)\/?(?:[?#].*)?$/i)?.[1];
@@ -12,7 +21,12 @@ function csvItems(text) {
     if (given && linkedId && given !== linkedId) throw new Error('第 ' + (i+2) + ' 行的链接与账号标识不符');
     const flag = (r[keep] || '').trim();
     if (!['','0','1'].includes(flag)) throw new Error('第 ' + (i+2) + ' 行保留标记无效');
-    return {sec_uid:given || linkedId, nickname:(r[nick] || '').trim(), douyin_id:(r[id] || '').trim(), keep:flag==='1'};
+    return {
+      sec_uid: given || linkedId,
+      nickname: unescapeFormula((r[nick] || '').trim()),
+      douyin_id: unescapeFormula((r[id] || '').trim()),
+      keep: flag === '1',
+    };
   });
 }
 
@@ -27,7 +41,7 @@ function decisionItems(text) {
   });
 }
 
-export function loadUnfollowList(file, limit = 0) {
+export function loadUnfollowList(file, limit = 0, { completedIds = null } = {}) {
   const text = fs.readFileSync(file, 'utf8');
   const items = /\.(txt|tsv)$/i.test(file) ? decisionItems(text) : csvItems(text);
   if (!items.length) throw new Error('名单为空');
@@ -42,6 +56,8 @@ export function loadUnfollowList(file, limit = 0) {
     item.keep ||= protectedIds.has(item.sec_uid) || Boolean(existing?.keep);
     unique.set(item.sec_uid,item);
   }
-  const candidates = [...unique.values()].filter(d => !d.keep);
-  return { total:items.length, duplicate:items.length-unique.size, excluded:unique.size-candidates.length, items:limit ? candidates.slice(0,limit) : candidates };
+  const active = [...unique.values()].filter(d => !d.keep);
+  const candidates = completedIds ? active.filter(d => !completedIds.has(d.sec_uid)) : active;
+  const completed = active.length - candidates.length;
+  return { total:items.length, duplicate:items.length-unique.size, excluded:unique.size-active.length, completed, items:limit ? candidates.slice(0,limit) : candidates };
 }

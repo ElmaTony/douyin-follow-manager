@@ -33,9 +33,12 @@ try {
     files.push(file);
   }
   context=await chromium.launchPersistentContext(path.join(root,'browser'),{executablePath:CHROME,headless:true,serviceWorkers:'block'});
+  const filesForBridge = process.platform === 'win32'
+    ? files.map(f => f[0].toLowerCase() + f.slice(1))
+    : files;
   // A single context uses the same background-target mechanism as the desktop launcher.
   let activeOwner='fixture-owner';
-  await attachGalleryUnfollow(context,files,{
+  await attachGalleryUnfollow(context,filesForBridge,{
     verifyMain:async()=>{},
     processUnfollow:(page,item,options)=>processUnfollow(page,item,{...options,checkOwner:async page=>{
       if ((await currentOwner(page,{})).sec_uid!=='fixture-owner') throw new Error('大号身份异常，本批已暂停');

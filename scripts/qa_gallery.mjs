@@ -194,6 +194,19 @@ try {
       }
       await click('#undo');
       assert.equal(await page.locator('.card[data-sec="'+reviewer.sec_uid+'"] .b-keep').getAttribute('aria-pressed'),'false');
+      if (nextAuthor) {
+        await page.locator('#markFilter').selectOption('none');
+        await page.locator('.card[data-sec="'+reviewer.sec_uid+'"] .cover').first().click();
+        let guard = 0;
+        while (await page.locator('#lb').evaluate(el => el.open) && guard++ < cfg.data.length + 2) {
+          await click('#lbKeep');
+        }
+        assert.equal(await page.locator('#lb').evaluate(el => el.open), false);
+        assert.ok(await page.evaluate(() => document.activeElement !== document.body), '筛选移除最后一张卡片后关闭灯箱应回退焦点');
+        await page.evaluate((k) => localStorage.removeItem(k), cfg.key);
+        await page.locator('#markFilter').selectOption('all');
+        await page.reload({ waitUntil: 'domcontentloaded' });
+      }
     }
     const crossing=cfg.data.find(d=>d.alsoIn?.length);
     if (crossing) {
@@ -454,7 +467,8 @@ async function checkProfileTab(browser) {
   const ctx=await browser.newContext();
   try {
     const files=['review_gallery.html','stale_gallery.html','suspect_gallery.html'].map(name=>path.join(galleryDir,name));
-    await attachProfileTab(ctx,files);
+    const filesForBridge=process.platform==='win32'?files.map(f=>f[0].toLowerCase()+f.slice(1)):files;
+    await attachProfileTab(ctx,filesForBridge);
     await ctx.route(/^https?:/,r=>r.request().resourceType()==='document' ?
       r.fulfill({contentType:'text/html',body:'<title>Example profile</title>'}) : r.abort());
     const gallery=await ctx.newPage(); await gallery.goto(url(files[0]));

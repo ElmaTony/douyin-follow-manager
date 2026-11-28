@@ -21,20 +21,29 @@ export function confirmedStatus(response, secUid) {
 
 export async function selfInfo(ctx, common) {
   await ctx.page.goto('https://www.douyin.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await sleep(4000);
-  return currentOwner(ctx.page,common);
+  const first = await currentOwner(ctx.page, common).catch(() => null);
+  if (first?.status_code === 0 && first.sec_uid && first.short_id && first.short_id !== '0') return first;
+  await sleep(3000);
+  return currentOwner(ctx.page, common);
 }
 
-export function currentOwner(page,common) {
+export function currentOwner(page, common) {
   return page.evaluate(async (common) => {
     const qs = new URLSearchParams({ ...common, source_type: '1', publish_video_strategy_type: '2' });
     const r = await fetch('https://www.douyin.com/aweme/v1/web/user/profile/self/?' + qs, {
       headers: { accept: 'application/json', referer: 'https://www.douyin.com/' }, credentials: 'include',
     });
-    const d = await r.json();
+    let d;
+    try {
+      d = await r.json();
+    } catch {
+      throw new Error('接口返回非 JSON 内容（可能触发平台验证或登录失效）');
+    }
     return {
       status_code: d?.status_code, nickname: d?.user?.nickname, sec_uid: d?.user?.sec_uid,
-      short_id: d?.user?.short_id ? String(d.user.short_id) : '', uid: d?.user?.uid,
+      short_id: d?.user?.short_id ? String(d.user.short_id) : '',
+      unique_id: d?.user?.unique_id ? String(d.user.unique_id) : '',
+      uid: d?.user?.uid,
       following_count: d?.user?.following_count,
     };
   }, common);

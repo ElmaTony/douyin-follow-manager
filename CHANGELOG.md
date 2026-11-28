@@ -1,5 +1,23 @@
 # 更新记录 / Changelog
 
+## [v0.5.4](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.4) · 2026-11-28
+
+### 画廊桥接、迁移保护与桌面稳定性
+
+- 修复 Windows 小写盘符路径下本地文件 URL 大小写不一致导致画廊内取关和专用主页标签页复用失效的问题；画廊内连续取关增加随机间隔，筛选移除最后一张卡片并关闭灯箱时自动回退焦点。
+- 增量迁移点击前校验关注与取关按钮实际文案，收紧取消关注确认弹窗匹配，并在大号关注成功后立即落盘台账；合并与迁移改名时保留历史曾用名供嫌疑画廊比对，重试成功或重置挂起项时清理残留失败备注。
+- 在线更新审阅数据发布后自动联动更新取关登记表与重关提醒，永久保留名单自动豁免重关告警，桌面端与命令行新增确认重关并移出登记表入口。
+- 从文件执行批量取关支持同名单按处理上限分批自动续跑跳过已完成项，优先精确匹配 CSV 列名，还原报表公式前缀并兼容首尾空白昵称；收紧项目自检对核心 JSON 结构的校验并消除非数组数据导致的崩溃。
+- 修复桌面端在关闭确认弹窗期间任务恰好结束触发窗口重入关闭异常的问题，改为异步探测 Node.js 运行时并避免作业句柄释放竞态，保留画廊打开期间运行本地任务后的状态提示，并重构中英文自述文档。
+
+### English
+
+- Normalize Windows `file://` URL casing so in-gallery unfollows and reusable profile tabs work reliably from lowercase drive paths, add randomized pacing between in-gallery unfollows and restore focus cleanly when closing the lightbox after filtering out the last card.
+- Verify live follow/unfollow button labels before clicking during transfers, scope unfollow confirmation dialogs, persist destination completions immediately before source actions, retain `former_nicknames` across merges and renames, and clear stale failure notes after successful retries or `reset-held`.
+- Sync the unfollow register and re-follow alerts automatically when publishing online updates, exempt permanently kept accounts from re-follow warnings and add a desktop and CLI action (`accept-refollow`) to acknowledge intentional re-follows.
+- Skip already-completed entries across `--limit` batches on the same imported file, prefer exact CSV column matches, strip report formula-guard prefixes on re-import, normalize nicknames during execution checks and harden `doctor` against malformed or non-array JSON files.
+- Fix a WPF `Window.Closing` re-entrancy crash when tasks finish while the confirmation dialog is open, resolve Node.js off the UI thread without stdout/stderr pipe deadlocks or job-handle disposal races, preserve gallery-running status after local tasks complete and rewrite the Chinese and English READMEs.
+
 ## [v0.5.3](https://github.com/ElmaTony/douyin-follow-manager/releases/tag/v0.5.3) · 2026-11-27
 
 ### 迁移稳定性、画廊审阅与桌面体验

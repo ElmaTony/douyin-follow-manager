@@ -6,7 +6,12 @@ import { binding, initialize } from '../scripts/local-state.mjs';
 
 initialize();
 const warnings = [];
-const mainOwner = binding('main')?.short_id, altOwner = binding('alt')?.short_id;
+const formatOwner = (b) => {
+  if (!b?.short_id) return null;
+  const id = b.douyin_id || b.short_id;
+  return b.nickname ? `${b.nickname} (${id})` : id;
+};
+const mainOwner = formatOwner(binding('main')), altOwner = formatOwner(binding('alt'));
 if (!mainOwner) warnings.push('首次使用请按 README 的「快速开始」绑定大号。');
 const dir = 'data';
 const pending = fs.existsSync(path.join(dir,'.review-ready'));
@@ -64,10 +69,12 @@ const report = read('最近自检', () => {
   if (!levels.every(level => ['PASS','WARN','FAIL'].includes(level))) throw new Error('自检报告格式错误');
   return ['PASS','WARN','FAIL'].map((v,i) => levels.filter(l=>l===v).length+' '+['通过','提醒','失败'][i]).join('　');
 });
+let refollowAlerts = 0;
 const registry = read('取关登记表', () => {
   const reg = json('unfollow_registry.json');
   if (!reg || !reg.entries || typeof reg.entries !== 'object' || Array.isArray(reg.entries)) throw new Error('登记表格式错误');
   if (Array.isArray(reg.refollow_alerts) && reg.refollow_alerts.length > 0) {
+    refollowAlerts = reg.refollow_alerts.length;
     warnings.push(
       '发现 ' + reg.refollow_alerts.length + ' 位已登记取关的博主重新出现在大号关注中：' +
       reg.refollow_alerts.slice(0, 4).map(x => x.current_nickname || x.nickname || x.sec_uid).join('、') +
@@ -76,4 +83,4 @@ const registry = read('取关登记表', () => {
   }
   return Object.keys(reg.entries).length;
 });
-console.log(JSON.stringify({mainOwner,altOwner,ledger,snapshot,canCompare,galleries,report,registry,warnings}));
+console.log(JSON.stringify({mainOwner,altOwner,ledger,snapshot,canCompare,galleries,report,registry,refollowAlerts,warnings}));

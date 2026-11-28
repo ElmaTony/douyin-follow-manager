@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { galleryPayload, readJson } from './core.mjs';
+import { syncRegistryFromFollowings } from './update_registry.mjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(scripts), data = path.join(root,'data');
@@ -30,10 +31,19 @@ function publish() {
   fs.unlinkSync(path.join(done,'published','manifest.json'));
   fs.rmdirSync(path.join(done,'published'));
   fs.rmdirSync(done);
-  const publishedAt = readJson(path.join(data,'snapshot_latest.json'))?.exported_at;
+  const publishedSnap = readJson(path.join(data,'snapshot_latest.json'));
+  const publishedAt = publishedSnap?.exported_at;
   if (publishedAt) for (const name of ['.snapshot-progress.json','.profile-progress.json']) {
     const progress = path.join(data,name);
     if (readJson(progress)?.exported_at === publishedAt) fs.rmSync(progress,{force:true});
+  }
+  if (publishedSnap?.accounts && typeof publishedSnap.accounts === 'object' && !Array.isArray(publishedSnap.accounts) && fs.existsSync(path.join(data, 'unfollow_registry.json'))) {
+    try {
+      const regStats = syncRegistryFromFollowings(Object.values(publishedSnap.accounts), { dataDir: data });
+      if (regStats.alertCount > 0) console.log(`[WARN] 已联动更新取关登记表，发现 ${regStats.alertCount} 位已登记博主重新出现在大号关注中。`);
+    } catch (err) {
+      console.warn('[WARN] 取关登记表联动更新失败：' + err.message);
+    }
   }
   console.log('最新快照、处罚核验和三个审阅画廊已发布。');
 }

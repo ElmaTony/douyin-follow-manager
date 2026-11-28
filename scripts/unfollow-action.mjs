@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import { sleep } from './lib.mjs';
 import { confirmedStatus, currentOwner, isOwner, selfInfo } from './account-checks.mjs';
-import { shanghaiDate, writeJson } from './core.mjs';
-import { COMMON, fetchProfileOther, waitProfileHydrated } from './douyin-api.mjs';
+import { normText, shanghaiDate, writeJson } from './core.mjs';
+import { COMMON, FOLLOW_BTN_SELECTOR, FOLLOWING_BTN_RE, fetchProfileOther, inspectProfileDom, waitProfileHydrated } from './douyin-api.mjs';
 
 async function readStatus(page, secUid) {
   const response = await fetchProfileOther(page, secUid, COMMON);
@@ -65,17 +65,12 @@ export async function processUnfollow(page, item, { execute = false, stillPendin
   const url = 'https://www.douyin.com/user/' + encodeURIComponent(item.sec_uid);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await waitProfileHydrated(page);
-  const identity = await page.evaluate(() => ({
-    sec: location.pathname.split('/user/')[1]?.replace(/\/$/, ''),
-    id: document.body?.innerText?.match(/抖音号[:：]\s*([^\s]+)/)?.[1],
-    title: document.title,
-  }));
-  const norm = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+  const identity = await inspectProfileDom(page);
   const failure = (detail) => ({ code: 'failed', detail });
   if (
     identity.sec !== item.sec_uid ||
     (item.douyin_id && identity.id !== item.douyin_id) ||
-    (execute && (!item.nickname || !item.douyin_id || !norm(identity.title).includes(norm(item.nickname))))
+    (execute && (!item.nickname || !item.douyin_id || !normText(identity.title).includes(normText(item.nickname))))
   ) {
     if (execute) await sitePause(page);
     return failure('主页身份核对失败');
@@ -83,7 +78,8 @@ export async function processUnfollow(page, item, { execute = false, stillPendin
   if (execute) await checkOwner(page);
   const status = await readStatus(page, item.sec_uid);
   if (status.restricted || protectedAccounts().has(item.sec_uid)) return failure('账号受保护');
-  if (execute && (status.nickname !== item.nickname || (status.unique_id || status.short_id) !== item.douyin_id)) {
+  const idMatched = !item.douyin_id || status.unique_id === item.douyin_id || status.short_id === item.douyin_id;
+  if (execute && (normText(status.nickname) !== normText(item.nickname) || !idMatched)) {
     return failure('线上身份与审阅名单不一致');
   }
   if (execute && !(await stillPending())) return failure('审阅决定已变化');
@@ -97,7 +93,7 @@ export async function processUnfollow(page, item, { execute = false, stillPendin
   }
   if (!execute) return { code: 'pending', detail: '待取关(dry-run)' };
   await sitePause(page);
-  const control = page.locator('button[data-e2e="user-info-follow-btn"]:visible').filter({ hasText: /^\s*(已关注|互相关注|相互关注|朋友)\s*$/ });
+  const control = page.locator(FOLLOW_BTN_SELECTOR + ':visible').filter({ hasText: FOLLOWING_BTN_RE });
   if ((await control.count()) === 0) return failure('未找到已关注按钮');
   await checkOwner(page);
   if (protectedAccounts().has(item.sec_uid) || !(await stillPending())) return failure('审阅决定或保护状态已变化');
